@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <map>
+#include <queue>
+
 
 #define MAX_KEY_BYTE_PER_REQUEST 20
 #define MAX_VALUE_BYTE_PER_REQUEST 1000
@@ -31,13 +33,15 @@ class GTStoreClient {
 
 class GTStoreManager {
 		private:
-				vector<int> uninitialized; //PIDS of uninitialized nodes
-				vector<store_grp_t> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
+				vector<int> uninitialized; //SFD's of uninitialized nodes
+				queue<store_grp_t> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
 				std::map<std::string, store_grp_t> existing_puts;
+				int total_nodes;
+				int k;
 
 		public:
-				void init();
-				//store_grp_t put(std::string key, val_t val) //Should implement uninitialized/RR logic
+				void init(int nodes, int k);
+				store_grp_t put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				//gets are not handled here.
 				//int hearbeat() // should return a dead pid. Should run in a seperate thread? 
 };
