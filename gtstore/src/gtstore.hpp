@@ -8,6 +8,7 @@
 #include <vector>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <map>
 
 #define MAX_KEY_BYTE_PER_REQUEST 20
 #define MAX_VALUE_BYTE_PER_REQUEST 1000
@@ -33,8 +34,21 @@ class GTStoreManager {
 };
 
 class GTStoreStorage {
+		private:
+				std::map<std::string, val_t> store; //Storage map
+				//Nodes should be identified by PID
+				int load; //Measure of load on current node
+				
 		public:
 				void init();
+				int put(std::string key, val_t value);
+				val_t get(std::string key);
+				bool leader; //Is leader or replica
+				enum node_state {
+					UNINITIALIZED,
+					LEADER,
+					REPLICA
+				};
 };
 
 #endif
