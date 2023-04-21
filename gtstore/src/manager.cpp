@@ -17,22 +17,29 @@ store_grp_t GTStoreManager::put(std::string key, val_t val) {
 			new_grp.push_back(uninitialized.back());
 			uninitialized.pop_back();
 		}
-		rr.push(new_grp);
+		rr.push(&new_grp);
 		return new_grp;
 	} 
 
-	store_grp_t existing_grp;
+	store_grp_t *existing_grp;
 	auto record = existing_puts.find(key);
 	
 	if (record == existing_puts.end()) { //No existing put found, allocate existing grp w/ RR
+		if (rr.size() == 0) {
+			return {}; //Failure, if there are no allocated nodes and no rr groups, we have zero nodes
+		}
+
 		existing_grp = rr.front();
 		rr.pop();
 		rr.push(existing_grp);
-		return existing_grp;
+
+		existing_puts.insert(std::pair<std::string, store_grp_t *>(key, existing_grp)); //Add a new put entry
+		return *existing_grp;
 	} else {
-		return record->second; //else return the found grp.
+		return *record->second; //else return the found grp.
 	}
 }
+
 
 
 

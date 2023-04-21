@@ -34,8 +34,8 @@ class GTStoreClient {
 class GTStoreManager {
 		private:
 				vector<int> uninitialized; //SFD's of uninitialized nodes
-				queue<store_grp_t> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
-				std::map<std::string, store_grp_t> existing_puts;
+				queue<store_grp_t *> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
+				std::map<std::string, store_grp_t *> existing_puts;
 				int total_nodes;
 				int k;
 
