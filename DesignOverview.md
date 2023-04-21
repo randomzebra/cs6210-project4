@@ -36,3 +36,8 @@ Client acts as the intermediary between the internals of GTStore. It should:
     * This is the code that should actually send messages to the manager and storage nodes, and pass that info back to the user program
 * We only ever need to handle one client operation.
 * Does a manager need to lock a storage group when a request is occurring?
+
+
+### Communication
+
+At first, was thinking about using PIDs to identify processes, but our communication must be network. We can use any RCP framework, (gRCP is the recommended), or communicate through sockets. Need input on which to use.
