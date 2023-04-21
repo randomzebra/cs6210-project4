@@ -40,15 +40,18 @@ class GTStoreStorage {
 				int load; //Measure of load on current node
 				
 		public:
+				GTStoreStorage();
 				void init();
 				int put(std::string key, val_t value);
 				val_t get(std::string key);
 				bool leader; //Is leader or replica
+				int get_load();
 				enum node_state {
 					UNINITIALIZED,
 					LEADER,
 					REPLICA
 				};
+				node_state state;
 };
 
 #endif

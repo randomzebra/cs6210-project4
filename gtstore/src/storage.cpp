@@ -2,7 +2,6 @@
 #include <map>
 
 
-
 void GTStoreStorage::init() {
 	cout << "Inside GTStoreStorage::init()\n";
 	load = 0;
@@ -20,6 +19,10 @@ int GTStoreStorage::put(std::string key, val_t value) {
 // This will return a default constructed string of key is not in store
 val_t GTStoreStorage::get(std::string key) {
 	return store[key];
+}
+
+int GTStoreStorage::get_load() {
+	return load;
 }
 
 
