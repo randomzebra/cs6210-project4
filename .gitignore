@@ -1,1 +1,3 @@
 .vscode
+# Supress test compilation outputs
+a.out 
