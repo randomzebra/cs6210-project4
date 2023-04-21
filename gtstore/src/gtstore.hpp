@@ -16,6 +16,7 @@
 using namespace std;
 
 typedef vector<string> val_t;
+typedef vector<int> store_grp_t;
 
 class GTStoreClient {
 		private:
@@ -29,8 +30,16 @@ class GTStoreClient {
 };
 
 class GTStoreManager {
+		private:
+				vector<int> uninitialized; //PIDS of uninitialized nodes
+				vector<store_grp_t> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
+				std::map<std::string, store_grp_t> existing_puts;
+
 		public:
 				void init();
+				//store_grp_t put(std::string key, val_t val) //Should implement uninitialized/RR logic
+				//gets are not handled here.
+				//int hearbeat() // should return a dead pid. Should run in a seperate thread? 
 };
 
 class GTStoreStorage {
@@ -42,7 +51,7 @@ class GTStoreStorage {
 		public:
 				GTStoreStorage();
 				void init();
-				int put(std::string key, val_t value);
+				int put(std::string key, val_t value); //TODO: implement replica propagation
 				val_t get(std::string key);
 				bool leader; //Is leader or replica
 				int get_load();
