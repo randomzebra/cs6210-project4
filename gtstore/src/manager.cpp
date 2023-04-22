@@ -29,7 +29,7 @@ store_grp_t GTStoreManager::put(std::string key, val_t val) {
 			return {}; //Failure, if there are no allocated nodes and no rr groups, we have zero nodes
 		}
 
-		existing_grp = rr.front();
+		existing_grp = rr.front(); //RR
 		rr.pop();
 		rr.push(existing_grp);
 

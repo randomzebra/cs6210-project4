@@ -38,4 +38,11 @@ int main(int argc, char **argv) {
     }
     std::cout << std::endl;
 
+    std::cout << "map_val ";
+    auto record = tMap.find("a");
+    for (auto it = record->second->begin(); it != record->second->end(); it++) {
+        std::cout << *it << ' ';
+    }
+    std::cout << std::endl;
+
 }
