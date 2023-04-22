@@ -13,6 +13,7 @@ int main(int argc, char **argv) {
     int opt = 1;
     int count = 0;
     
+
     char* ack = "Hello from server";
     char buffer[1024] = { 0 };
     
@@ -25,6 +26,8 @@ int main(int argc, char **argv) {
         std::cerr << "SERVER: Socket Option failure with error code " << errno << std::endl;
         return 1;
     }
+
+    
 
     struct sockaddr_in addr;
     int addr_len = sizeof(addr);
