@@ -14,6 +14,9 @@
 
 #define MAX_KEY_BYTE_PER_REQUEST 20
 #define MAX_VALUE_BYTE_PER_REQUEST 1000
+#define REQUEST_TYPE 4
+#define PORT 8080 //This is the manager's port
+#define BUFFER_SZE (REQUEST_TYPE + MAX_KEY_BYTE_PER_REQUEST + MAX_VALUE_BYTE_PER_REQUEST)
 
 using namespace std;
 
@@ -24,6 +27,7 @@ class GTStoreClient {
 		private:
 				int client_id;
 				val_t value;
+				
 		public:
 				void init(int id);
 				void finalize();
@@ -38,10 +42,14 @@ class GTStoreManager {
 				std::map<std::string, store_grp_t *> existing_puts;
 				int total_nodes;
 				int k;
+				bool live;
 
 		public:
 				void init(int nodes, int k);
 				store_grp_t put(std::string key, val_t val); //Should implement uninitialized/RR logic
+				int node_init();
+				int listen_for_coms();
+
 				//gets are not handled here.
 				//int hearbeat() // should return a dead pid. Should run in a seperate thread? 
 };
