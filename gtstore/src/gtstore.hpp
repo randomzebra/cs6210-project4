@@ -83,6 +83,7 @@ class GTStoreClient {
 				int client_id;
 				val_t value;
 				int listen_fd, connect_fd;
+				//int mngr_socket_fd;
 				struct sockaddr_in mang_connect_addr;
 	
 
@@ -116,8 +117,7 @@ class GTStoreManager {
 				void comDemux();
 				int socket_init();
 				int node_init();
-				int listen_for_coms();
-				
+				int listen_for_msgs();
 
 
 				//gets are not handled here.
@@ -133,7 +133,6 @@ class GTStoreStorage {
 				uint32_t listen_port;
 				struct sockaddr_in mang_connect_addr;
 				store_grp_t replicas; //All replicas, excluding itself.
-				int listen_comms();
 		public:
 				void init();
 
@@ -149,6 +148,7 @@ class GTStoreStorage {
 					REPLICA
 				};
 				node_state state;
+				int listen_for_msgs();
 };
 
 #endif

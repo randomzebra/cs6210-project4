@@ -3,8 +3,6 @@
 #include <sys/socket.h>
 
 void GTStoreManager::init(int nodes, int k) {
-	
-	cout << "Inside GTStoreManager::init()\n";
 	this->total_nodes = nodes;
 	this->k = k;
 	live = true; //This should be false when GTStoreManager should die gracefully
@@ -94,15 +92,20 @@ int GTStoreManager::node_init() {
 			this->uninitialized.push_back(msg->discovery_port);
 		}
 
-		send(incoming, "Discover ack", strlen("Discover ack"), 0);
+		if (send(incoming, "Discover ack", strlen("Discover ack"), 0) < 0) {
+			perror("MANAGER: send discover ack back to node");
+			return -1;
+		}
 		close(incoming);
 		counter++;
 	}
-	std::cout << "Discovered Nodes:";
+
+	std::cout << "discovered nodes: {";
 	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
 		 std::cout << " " << *it;
 	}
-	std::cout << std::endl;
+	std::cout << "}\n";
+
 	vector<store_grp_t> grp_assignments;
 	while (uninitialized.size() > 0) {
 		store_grp_t new_grp;
@@ -118,8 +121,6 @@ int GTStoreManager::node_init() {
 	push_group_assignments(grp_assignments);
 
 	return 0;
-
-
 }
 
 int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 second timeout
@@ -157,6 +158,19 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> grp_assignments)
 	//
 	//
 	// send message
+
+
+	std::cout << "group assignments\n";
+	int i = 0;
+	for (auto& group : grp_assignments) {
+		std::cout << "\t" << i << ": ";
+		for (auto& socket : group) {
+			std::cout << socket;
+		}
+		std::cout << "\n";
+		i++;
+	}
+
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
 	
@@ -186,12 +200,10 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> grp_assignments)
 	}
 }
 
-
-
 /*
 * Receiving and processing commands. This is the main thread.
 */
-int GTStoreManager::listen_for_coms() {
+int GTStoreManager::listen_for_msgs() {
 	int incoming;
 
 	
@@ -205,6 +217,7 @@ int GTStoreManager::listen_for_coms() {
 			perror("MANAGER: Node Init Accept failed");
         	return -1;
 		}
+		std::cout << "[listen_for_msgs] recived message!\n";
 		//thread comms_routine (GTStoreManager::comDemux);
 		comDemux();
 
@@ -217,6 +230,7 @@ void GTStoreManager::comDemux() {
 		perror("MANAGER: thread demux read failed");
 		return;
 	}
+	std::cout << "[comDemux]: read message: '" << buffer << "'\n";
 
 	if (((generic_message *) buffer)->type == PUT) {
 		comm_message *msg = (comm_message *) buffer;
@@ -281,5 +295,6 @@ int main(int argc, char **argv) {
 
 	GTStoreManager manager;
 	manager.init(n, k);
-	
+
+	manager.listen_for_msgs();
 }

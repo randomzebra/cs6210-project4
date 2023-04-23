@@ -4,7 +4,7 @@ make clean
 make
 
 # Launch the GTStore Manager
-./bin/manager &
+./bin/manager 2 1 &
 sleep 5
 
 # Launch couple GTStore Storage Nodes
@@ -19,3 +19,5 @@ sleep 5
 ./bin/test_app single_set_get 2 &
 ./bin/test_app single_set_get 3 
 
+# killall procs
+pkill -f "./bin/manager|./bin/storage"

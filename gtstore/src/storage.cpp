@@ -4,7 +4,6 @@
 
 
 void GTStoreStorage::init() {
-	cout << "Inside GTStoreStorage::init()\n";
 	load = 0;
 	state = UNINITIALIZED; //Leader is set upon first put to a node. Replica set by manager when another node is set as leader
 
@@ -17,6 +16,8 @@ void GTStoreStorage::init() {
 		std::cerr << "MANAGER: node_init() failed" << std::endl;
 		return;
 	}
+
+	std::cout << "STORAGE: initalized\n";
 }
 
 /*
@@ -26,7 +27,6 @@ int GTStoreStorage::node_init() {
 	struct timeval time_val_struct = { 0 };
 	time_val_struct.tv_sec = 5;
 	time_val_struct.tv_usec = 0;
-	std::cout << "node init" << std::endl;
 	if (setsockopt(this->connect_fd, SOL_SOCKET, SO_RCVTIMEO, &time_val_struct, sizeof(time_val_struct)) < 0) {
 		perror("STORAGE: Node_init timeout opt failed");
 		return -1;
@@ -38,8 +38,6 @@ int GTStoreStorage::node_init() {
 	}	
 
 	//Set up a five second time out
-
-	
 	if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {
 		perror("STORAGE: Node_init connect failed");
 		return -1;
@@ -55,7 +53,7 @@ int GTStoreStorage::node_init() {
 	}
 	char buffer[BUFFER_SZE] = {0};
 	read(this->connect_fd, buffer, sizeof(buffer));
-	std::cout << "STORAGE: Node init ack received " << buffer << std::endl;
+	std::cout << "STORAGE: Node init ack received '" << buffer << "'\n";
 	close(this->connect_fd);
 
 	//rePrep a socket and reset timeout to infinite
@@ -83,7 +81,7 @@ int GTStoreStorage::node_init() {
 //
 // - make new thread with msg demux
 // - pick what to do with thajt
-int GTStoreStorage::listen_comms() {
+int GTStoreStorage::listen_for_msgs() {
 
 	// if i recieve a discovery message, make myself primary
 	//
@@ -189,6 +187,8 @@ int GTStoreStorage::get_load() {
 int main(int argc, char **argv) {
 	GTStoreStorage storage;
 	storage.init();
+
+	storage.listen_for_msgs();
 }
 
 

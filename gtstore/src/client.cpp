@@ -57,7 +57,6 @@ vector<string> GTStoreClient::get(string key) {
 }
 
 bool GTStoreClient::put(string key, vector<string> value) {
-
 	string print_value = "";
 	string serialized_value = "";
 	if (value.size() > 100) {
@@ -95,7 +94,9 @@ bool GTStoreClient::put(string key, vector<string> value) {
 	}
 	
 	if (((generic_message *) buffer)->type == ACKPUT) { //Received an ACK w/ a storage port from mngr
+
 		port_message * mng_resp = (port_message *) buffer;
+		std::cout << "[CLIENT] recieved ACK from manager with port # " << mng_resp->port << "\n";
 		if(restart_connection(1) < 0) { //Restart w/ timeout
 			std::cerr << "Failed to restart connection after put mangr ACK" << std::endl;
 			return false;
