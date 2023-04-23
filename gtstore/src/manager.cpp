@@ -205,12 +205,13 @@ int GTStoreManager::listen_for_coms() {
 			perror("MANAGER: Node Init Accept failed");
         	return -1;
 		}
-		thread comms_routine(&GTStoreManager::comDemux, incoming);	
+		//thread comms_routine (GTStoreManager::comDemux);
+		comDemux();
 
 	}
 }
 
-void GTStoreManager::comDemux(int incoming) {
+void GTStoreManager::comDemux() {
 	char buffer[BUFFER_SZE] = {0};
 	if (read(this->listen_fd, buffer, sizeof(buffer)) < 0) {
 		perror("MANAGER: thread demux read failed");
@@ -261,7 +262,7 @@ store_grp_t GTStoreManager::put(std::string key, val_t val) {
 }
 
 int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
-
+	return -1;
 }
 
 

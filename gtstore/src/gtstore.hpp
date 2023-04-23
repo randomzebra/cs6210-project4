@@ -113,7 +113,7 @@ class GTStoreManager {
 				void init(int nodes, int k);
 				store_grp_t put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				int put_network(std::string key, val_t val); //Should implement uninitialized/RR logic
-				void comDemux(int incoming);
+				void comDemux();
 				int socket_init();
 				int node_init();
 				int listen_for_coms();
