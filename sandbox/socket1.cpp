@@ -48,7 +48,7 @@ int main(int argc, char const* argv[])
         return -1;
     }
 
-    if (listen(server_listen, 3) < 0) {
+    if ((listen(server_listen, 3)) < 0) {
         perror( "SERVER: Listen failed");
         exit(EXIT_FAILURE);
     }

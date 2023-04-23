@@ -1,5 +1,4 @@
 #include "gtstore.hpp"
-#include <netinet/in.h>
 #include <string.h>
 
 void GTStoreManager::init(int nodes, int k) {
@@ -8,153 +7,152 @@ void GTStoreManager::init(int nodes, int k) {
 	this->total_nodes = nodes;
 	this->k = k;
 	live = true; //This should be false when GTStoreManager should die gracefully
+	
+	if (socket_init() < 0) {
+		std::cerr << "MANAGER: socket_init() failed" << std::endl;
+		return;
+	}
+	
 	//Node Discovery
-
+	if (node_init() < 0) {
+		std::cerr << "MANAGER: node_init() failed" << std::endl;
+		return;
+	}
 	//TODO: socket code here
-	listen_for_coms();
+	
 }
 
+/*
+* Sets up listen and connection sockets. Hard binds manager socket to 8080 so it can be discovered by client and node. Does not begin any socket operations
+*/
+int GTStoreManager::socket_init() {
+	if ((this->listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("MANAGER: listen socket");
+		return -1;
+	} 
 
+	if ((this->connect_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("MANAGER: connect socket");
+		return -1;
+	}
+
+	
+    int opt = 1;
+    //int addrlen = sizeof(listen_addr);
+	listen_addr.sin_family = AF_INET;
+    listen_addr.sin_addr.s_addr = INADDR_ANY;
+    listen_addr.sin_port = htons(PORT);
+
+	if (setsockopt(this->listen_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+        perror("MANAGER: Option Selection Failed");
+        return -1;
+    }
+
+	if (bind(this->listen_fd, (struct sockaddr*) &listen_addr, sizeof(listen_addr)) < 0) {
+        perror("MANAGER: Bind failed");
+        return -1;
+    }
+
+	/*cant connect because we don't know where, but we can start to listen*/
+	if (listen(this->listen_fd, 32) < 0) {
+		perror("MANAGER: listen failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+* Code for discovering storage nodes before operations can begin
+*/
 int GTStoreManager::node_init() {
-	int server_fd, valread, incoming_socket;
-    int opt = 1;
-    int count = 0;
-    
-	std::cout << "Listening for nodes" << std::endl;
-    char* ack = "Hello from server";
-    char buffer[sizeof(int) * 4] = { 0 };
-    
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "SERVER: Socket creation error" << std::endl;
-        return 1;
-    }
-    std::cerr << "SERVER FD: " << server_fd << std::endl;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        std::cerr << "SERVER: Socket Option failure with error code " << errno << std::endl;
-        return 1;
-    }
+	int incoming;
 
-	struct timeval timeout;
-    timeout.tv_sec = 60;
-    timeout.tv_usec = 0;
-    
-    if (setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout))) {
-        std::cerr << "SERVER: Socket RCVTIMEO failure with error code " << errno << std::endl;
-        return 1;
-    }
-    
-
-    struct sockaddr_in addr;
-    int addr_len = sizeof(addr);
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORT);
-
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ) {
-        std::cerr << "SERVER: Bind failed with error code " << errno << std::endl;
-        return 1;
-    }
 	
-	
-	int count = 0;
-    while (count < total_nodes) {
-        std::cout << "SERVER: On message " << ++count << std::endl;
-        if (listen(server_fd, 5) < 0) {
-            std::cerr << "SERVER: Listen failed with error code " << errno << std::endl;
-            return 1;
-        }
-        std::cout << "SERVER: Listening..." << std::endl;
-        if ((incoming_socket = accept(server_fd, (struct sockaddr *)&addr, (socklen_t *) &addr_len)) < 0) {
-            std::cerr << "SERVER: Accept failed with error code " << errno << std::endl;
-            return 1;
-        }
-
-        valread = read(incoming_socket, buffer, BUFFER_SZE);
-        std::cout << "SERVER RECEIVED: " << buffer << std::endl;
-		int client_socket = *((int *) buffer);
-
-        send(incoming_socket, ack, strlen(ack), 0);
-        std::cout << "SERVER: SENDING ACK" << std::endl;
-        close(incoming_socket);
-    }
-    
+	int addrlen = sizeof(listen_addr);
+	int counter = 0;
+	char buffer[BUFFER_SZE] = {0};
+	while (counter < total_nodes) {
+		if ((incoming = accept(this->listen_fd, (struct sockaddr*) &listen_addr, (socklen_t *)&addrlen)) < 0) {
+			perror("MANAGER: Node Init Accept failed");
+        	return -1;
+		}
+		
+		if (read(incoming, buffer, sizeof(buffer)) < 0) {
+			perror("MANAGER: Node init Read failed");
+			return -1;
+		}
 
 
+		discovery_message *msg = (discovery_message *) buffer;
+		if (msg->type != DISC) {
+			continue; //Drop any command messages at this stage
+		} else {
+			this->uninitialized.push_back(msg->discovery_port);
+		}
 
-    
-    shutdown(server_fd, SHUT_RDWR);
-    return 0;
+		send(incoming, "Discover ack", strlen("Discover ack"), 0);
+		close(incoming);
+		counter++;
+	}
+	std::cout << "Discovered Nodes:";
+	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
+		 std::cout << " " << *it;
+	}
+	std::cout << std::endl;
+	return 0;
 }
 
+/*
+* Receiving and processing commands. This is the main thread.
+*/
 int GTStoreManager::listen_for_coms() {
-	int server_fd, valread, incoming_socket;
-    int opt = 1;
-    int count = 0;
-    
+	int incoming;
 
-    char* ack = "Hello from server";
-    char buffer[BUFFER_SZE] = { 0 };
-    std::cout << "SERVER: Listening for commands" << std::endl;
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "SERVER: Socket creation error" << std::endl;
-        return 1;
-    }
-    std::cerr << "SERVER FD: " << server_fd << std::endl;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        std::cerr << "SERVER: Socket Option failure with error code " << errno << std::endl;
-        return 1;
-    }
-
-    
-
-    struct sockaddr_in addr;
-    int addr_len = sizeof(addr);
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORT);
-
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ) {
-        std::cerr << "SERVER: Bind failed with error code " << errno << std::endl;
-        return 1;
-    }
 	
-	
-
-    while (live) {
-        std::cout << "SERVER: On message " << ++count << std::endl;
-        if (listen(server_fd, 5) < 0) {
-            std::cerr << "SERVER: Listen failed with error code " << errno << std::endl;
-            return 1;
-        }
-        std::cout << "SERVER: Listening..." << std::endl;
-        if ((incoming_socket = accept(server_fd, (struct sockaddr *)&addr, (socklen_t *) &addr_len)) < 0) {
-            std::cerr << "SERVER: Accept failed with error code " << errno << std::endl;
-            return 1;
-        }
-
-        valread = read(incoming_socket, buffer, BUFFER_SZE);
-        std::cout << "SERVER RECEIVED: " << buffer << std::endl;
-        send(incoming_socket, ack, strlen(ack), 0);
-        std::cout << "SERVER: SENDING ACK" << std::endl;
-        close(incoming_socket);
-    }
-    
+	int addrlen = sizeof(listen_addr);
+	int counter = 0;
+	char buffer[BUFFER_SZE] = {0};
 
 
+	while (true) {
+		if ((incoming = accept(this->listen_fd, (struct sockaddr*) &listen_addr, (socklen_t *)&addrlen)) < 0) {
+			perror("MANAGER: Node Init Accept failed");
+        	return -1;
+		}
+		
+		if (read(incoming, buffer, sizeof(buffer)) < 0) {
+			perror("MANAGER: Node init Read failed");
+			return -1;
+		}
 
-    
-    shutdown(server_fd, SHUT_RDWR);
-    return 0;
-    
+		if (((generic_message *) buffer)->type == PUT) {
+			comm_message *put =(comm_message *) buffer;
+			if (put_network(put->key, put->value) < 0) {
+				put->type = FAIL;
+				if (send(incoming, put, sizeof(&put), 0) < 0) {
+					perror("MANAGER: Node init Read failed");
+					return -1;
+				}
+				continue;
+			}
 
+
+
+		}
+	}
 }
 
 
+
+int GTStoreManager::put_network(string key, val_t value) {
+
+}
 
 store_grp_t GTStoreManager::put(std::string key, val_t val) {
 	if (uninitialized.size() > 0) {
 		store_grp_t new_grp;
-		for (int i = 0; i < uninitialized.size() && i < k; i++) {
+		for (size_t i = 0; i < uninitialized.size() && i < (unsigned) k; i++) {
 			new_grp.push_back(uninitialized.back());
 			uninitialized.pop_back();
 		}
