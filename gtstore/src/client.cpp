@@ -117,12 +117,14 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
 			if (errno == ETIMEDOUT) { //Primary timed out, dead
 				std::cerr << "Primary dead" << std::endl;
+				// close the current socket and re-open it bc we can only use a socket once
 				restart_connection(0);
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 					perror("CLIENT: put finalize ack connection");
 					return false;
 				}
 
+				// tell manager the node in the port they gave us failed
 				mng_resp->type = FAIL;
 				if (send(this->connect_fd, mng_resp, sizeof(&mng_resp), 0) < 0) {
 					perror("CLIENT: put send mngr failed");
@@ -134,6 +136,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 					return false;
 				}
 
+				// the manager responds with an ACK after we tell it a node has died
 				if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
 					restart_connection(0);
 					return false;
@@ -141,9 +144,11 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			}
 
 			perror("CLIENT: put storage connect failed");
+			// TODO: recall put (key, value)
 			return false;
 		}
 
+		// if connection succeeds, send put(key, value) to storage node
 		if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
 			perror("CLIENT: put send storage failed");
 			return false;
@@ -154,12 +159,17 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			return false;
 		}
 
+		// ACKPUT means the primary storage node has recieved our key value
 		if (((generic_message *) buffer)->type == ACKPUT) { // Put succeeded on primary, Send ACKPUT to mngr to update Map.
+			// doing this to close the storage node file descriptor because we want to connect to the manager 
 			if(restart_connection(0) < 0) {
 				std::cerr << "Failed to restart connection after put storage ack" << std::endl;
 				return false;
 			}
 
+			// TODO: make new message: type port message
+			//
+			// manager needs to add key for that storage group
 			msg.type = ACKPUT;
 			if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 				perror("CLIENT: put finalize ack connection");

@@ -79,7 +79,25 @@ int GTStoreStorage::node_init() {
 }
 
 
+// do something similar in manager
+//
+// - make new thread with msg demux
+// - pick what to do with thajt
 int GTStoreStorage::listen_comms() {
+
+	// if i recieve a discovery message, make myself primary
+	//
+	//
+	// 2 types of discover msg:
+	// 	1. storage node, saying i'm avaible to the manager
+	// 	2. manager sending message to storage node saying you're primary now
+	//
+	//
+	// for type two:
+	// 	- cast into dicovery message struct
+	// 	- pull info out
+	// 	- populate replicas
+	// 	- connect to replicas
 	//Listen for assignment message:
 	char buffer[BUFFER_SZE];
 	struct sockaddr_in sin;

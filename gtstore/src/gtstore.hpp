@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <thread>
 #include <mutex>
+#include <sys/socket.h>
 
 
 #define MAX_KEY_BYTE_PER_REQUEST 20

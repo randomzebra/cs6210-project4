@@ -1,7 +1,6 @@
 #include "gtstore.hpp"
 #include <string.h>
-
-
+#include <sys/socket.h>
 
 void GTStoreManager::init(int nodes, int k) {
 	
@@ -51,7 +50,8 @@ int GTStoreManager::socket_init() {
         return -1;
     }
 
-	if (bind(this->listen_fd, (struct sockaddr*) &listen_addr, sizeof(listen_addr)) < 0) {
+	int res = bind(this->listen_fd, (struct sockaddr*) &listen_addr, (socklen_t)sizeof(listen_addr));
+	if (res < 0) {
         perror("MANAGER: Bind failed");
         return -1;
     }
@@ -147,7 +147,16 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 	return 0;
 }
 
+// tell a storage node that it's a primary and here are its children
 void GTStoreManager::push_group_assignments(vector<store_grp_t> grp_assignments) {
+	// called in node_init
+	// needs to be called when it recieves a failure of a primary node, reassign primary node from source group
+	//
+	//
+	// connect to storage node in `in_addr`, tell it you're the primary, give it group assignments
+	//
+	//
+	// send message
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
 	
