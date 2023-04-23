@@ -40,4 +40,5 @@ Client acts as the intermediary between the internals of GTStore. It should:
 
 ### Communication
 
-At first, was thinking about using PIDs to identify processes, but our communication must be network. We can use any RCP framework, (gRCP is the recommended), or communicate through sockets. Need input on which to use.
+This will roughly be the flow of the manager:
+- 

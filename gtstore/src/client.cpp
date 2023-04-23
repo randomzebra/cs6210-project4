@@ -94,7 +94,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		return false;
 	}
 	
-	if (((generic_message *) buffer)->type == ACK) { //Received an ACK w/ a storage port from mngr
+	if (((generic_message *) buffer)->type == ACKPUT) { //Received an ACK w/ a storage port from mngr
 		port_message * mng_resp = (port_message *) buffer;
 		if(restart_connection(1) < 0) { //Restart w/ timeout
 			std::cerr << "Failed to restart connection after put mangr ACK" << std::endl;
@@ -134,7 +134,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 					return false;
 				}
 
-				if (((generic_message *) buffer)->type == ACK) {//Manager has purged the failing port from records
+				if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
 					restart_connection(0);
 					return false;
 				}
@@ -154,13 +154,13 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			return false;
 		}
 
-		if (((generic_message *) buffer)->type == ACK) { // Put succeeded on primary, Send ACK to mngr to update Map.
+		if (((generic_message *) buffer)->type == ACKPUT) { // Put succeeded on primary, Send ACKPUT to mngr to update Map.
 			if(restart_connection(0) < 0) {
 				std::cerr << "Failed to restart connection after put storage ack" << std::endl;
 				return false;
 			}
 
-			msg.type = ACK;
+			msg.type = ACKPUT;
 			if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 				perror("CLIENT: put finalize ack connection");
 				return false;
@@ -176,7 +176,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 				return false;
 			}
 
-			if (((generic_message *) buffer)->type == ACK) { // We're done
+			if (((generic_message *) buffer)->type == ACKPUT) { // We're done
 				restart_connection(0);
 				return true;
 			}

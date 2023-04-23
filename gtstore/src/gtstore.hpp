@@ -13,6 +13,8 @@
 #include <queue>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <thread>
+#include <mutex>
 
 
 #define MAX_KEY_BYTE_PER_REQUEST 20
@@ -31,7 +33,8 @@ enum MSG_TYPE {
 	PUT,
 	GET,
 	HEARTBEAT,
-	ACK,
+	ACKPUT,
+	ACKGET,
 	FAIL
 };
 
@@ -53,6 +56,12 @@ struct discovery_message{
 	uint8_t type;
 	uint32_t discovery_port;
 };
+
+struct assignment_message {
+	uint8_t type;
+	uint32_t grp_assigment[25]; //Assume a hardcap of 25 replicas
+};
+
 //Used to demux message type
 struct generic_message {
 	uint8_t type;
@@ -60,6 +69,7 @@ struct generic_message {
 struct port_message {
 	uint8_t type;
 	uint32_t port;
+	char key[MAX_KEY_BYTE_PER_REQUEST];
 };
 struct comm_message {
 	uint8_t type;
@@ -73,7 +83,7 @@ class GTStoreClient {
 				val_t value;
 				int listen_fd, connect_fd;
 				struct sockaddr_in mang_connect_addr;
-
+	
 
 		public:
 				void init(int id);
@@ -94,16 +104,18 @@ class GTStoreManager {
 				bool live;
 				int listen_fd, connect_fd;
 				struct sockaddr_in listen_addr; //Server listening socket
-
+				std::mutex rr_mutex;
+				void push_group_assignments(vector<store_grp_t> grp_assignments);
+				int commit_push(string key, store_grp_t * strgrp);
+				int restart_connection(int mode);
 		public:
 				void init(int nodes, int k);
 				store_grp_t put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				int put_network(std::string key, val_t val); //Should implement uninitialized/RR logic
-
+				void comDemux(int incoming);
 				int socket_init();
 				int node_init();
 				int listen_for_coms();
-
 				
 
 
@@ -119,6 +131,8 @@ class GTStoreStorage {
 				int listen_fd, connect_fd;
 				uint32_t listen_port;
 				struct sockaddr_in mang_connect_addr;
+				store_grp_t replicas; //All replicas, excluding itself.
+				int listen_comms();
 		public:
 				void init();
 

@@ -58,7 +58,7 @@ int GTStoreStorage::node_init() {
 	std::cout << "STORAGE: Node init ack received " << buffer << std::endl;
 	close(this->connect_fd);
 
-	//rePrep a socket and reset timeout to infintie
+	//rePrep a socket and reset timeout to infinite
 
 	if ((this->connect_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("STORAGE: connect socket");
@@ -78,6 +78,26 @@ int GTStoreStorage::node_init() {
 	return 0;
 }
 
+
+int GTStoreStorage::listen_comms() {
+	//Listen for assignment message:
+	char buffer[BUFFER_SZE];
+	struct sockaddr_in sin;
+    socklen_t sinlen = sizeof(sin);
+    if (getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen) == -1) {
+        perror("getsockname");
+		return -1; 
+	}
+
+	while(true) {
+		if (accept(this->listen_fd, (struct sockaddr *)&sin, &sinlen) < 0) { //This happens either at the beginning when init groups are assigned or when primary dies
+			perror("STORAGE: Discovery accept failed");
+		}
+
+		//TODO: PUT, GET, and DISC (assign to primary and give replicas)
+	}
+	
+}
 
 /*
 * Sets up listen and connection sockets. Hard binds manager socket to 8080 so it can be discovered by client and node. Does not begin any socket operations
