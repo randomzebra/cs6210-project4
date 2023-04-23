@@ -269,8 +269,17 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 
 
 int main(int argc, char **argv) {
+	int n, k;
+	// TODO: the test provides no arguments to this so...
+	if (argc < 3) {
+		n = 2;
+		k = 2;
+	} else {
+		n = atoi(argv[1]);
+		k = atoi(argv[2]);
+	}
 
 	GTStoreManager manager;
-	manager.init(atoi(argv[1]), atoi(argv[2]));
+	manager.init(n, k);
 	
 }
