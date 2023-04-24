@@ -202,16 +202,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 			continue;
 		}
 		struct sockaddr_in addr = node.addr;
-		/*
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(node.addr.sin_port);
 
-		// TODO: set IP correctly
-		if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) <= 0) {
-			printf("Invalid address/ Address not supported \n");
-			return -1;
-		}
-		*/
 		int fd;
 		if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 			perror("STORAGE: neighbor socket");
@@ -219,7 +210,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 		}
 
 		if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-			if (errno == ETIMEDOUT) {
+			//if (errno == ETIMEDOUT) { <- fail no matter what!
 				std::cerr << "STORAGE[" << addr.sin_port << "]: neighbor died" << std::endl;
 
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
@@ -243,10 +234,10 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 				if (((generic_message *) buffer)->type != ACK) {
 					std::cerr << "STORAGE[" << addr.sin_port << "]: manager didnt respond w ack after death notification\n";
 				}
-			}
+			//}
 
-			perror("STORAGE: put storage connect failed");
-			continue;
+			//perror("STORAGE: put storage connect failed");
+			//continue;
 		}
 
 		// if connection succeeds, send put(key, value) to storage node

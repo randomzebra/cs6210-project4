@@ -97,6 +97,7 @@ int GTStoreManager::node_init() {
 
 	std::cout << "discovered nodes: {";
 	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
+		node_keys_map.insert({*it, {}});
 		 std::cout << " ";
 		 print_node(*it);
 	}
@@ -164,13 +165,6 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
-
-	/*
-	if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr) <= 0) {
-		printf("\nInvalid address/ Address not supported \n");
-		return;
-	}
-	*/
 
 	for (auto& group : groups) {
 		// TODO: send packet to every storage node saying what group they're in
@@ -302,9 +296,19 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		auto msg = (node_failure_message*)buffer;
 		if (handle_node_failure(msg->node) != 0) {
 			std::cerr << "[MANAGER] unable to handle node failure\n";
-			// send NACK
+			generic_message response;
+			response.type = FAIL;
+			if (send(client_fd, (void*)&response, sizeof(generic_message), 0) == -1) {
+				perror("MANAGER: (comdemux) send fail msg");
+				return;
+			};
 		} else {
-			// send ACK
+			generic_message response;
+			response.type = ACK;
+			if (send(client_fd, (void*)&response, sizeof(generic_message), 0) == -1) {
+				perror("MANAGER: (comdemux) send ack msg");
+				return;
+			};
 		}
 		break;
 	}
@@ -328,8 +332,9 @@ std::shared_ptr<store_grp_t> GTStoreManager::put(std::string key, val_t val) {
 
 		key_group_map.insert({key, group});
 
-		//std::cerr << "MANAGER: group to return ";
-		//print_group(*group);
+		for (int i=0; i < group->num_neighbors; ++i) {
+			node_keys_map[group->neighbors[i]].push_back(key);
+		}
 		return group;
 	} else {
 		return search->second; //else return the found grp.
@@ -341,6 +346,16 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 }
 
 int GTStoreManager::handle_node_failure(node_t node) {
+
+		std::cout << node_keys_map.size() << "\n";
+	for (auto& pair : node_keys_map) {
+		print_node(pair.first);
+		for (const auto& key : pair.second) {
+			std::cout << key << " ,";
+		}
+		std::cout << ";\n";
+	}
+
 	auto search = node_keys_map.find(node);
 	
 	if (search == node_keys_map.end()) {
