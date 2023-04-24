@@ -43,6 +43,7 @@ enum MSG_TYPE {
 	HEARTBEAT,
 	ACKPUT,
 	ACKGET,
+	ACK,
 	S_INIT	// Storage init (who is primary, who are neighbors) // TODO: rename STORAGE_GRP
 };
 
@@ -152,11 +153,10 @@ class GTStoreStorage {
 				std::map<std::string, val_t> store; //Storage map
 				//Nodes should be identified by PID
 				int load; //Measure of load on current node
-				int listen_fd, connect_fd;
+				int listen_fd, connect_fd, neighborhood_fd;
 				uint32_t listen_port;
 				struct sockaddr_in mang_connect_addr;
 				store_grp_t group; //All replicas, excluding itself.
-				int handle_assignment_msg(assignment_message* msg);
 				int handle_put_msg(comm_message* msg);
 				int com_demux(char* buffer, int client_fd);
 		public:

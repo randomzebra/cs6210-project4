@@ -135,7 +135,6 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 		struct timeval time_val_struct = { 0 };
 		time_val_struct.tv_sec = 5;
 		time_val_struct.tv_usec = 0;
-		std::cout << "node init" << std::endl;
 		if (setsockopt(this->connect_fd, SOL_SOCKET, SO_RCVTIMEO, &time_val_struct, sizeof(time_val_struct)) < 0) {
 			perror("MANAGER: restart timeout opt failed");
 			return -1;
@@ -269,9 +268,8 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 				std::cout << "MANAGER: no group found for put!";
 				return;
 			}
-			std::cout << "MANAGER: found put group ";
 			print_group(*group);
-			std::cout << "[MANAGER [demux]] returning packet to: " << inet_ntoa(sin->sin_addr) << " port: " << ntohs(sin->sin_port) << "\n";
+			//std::cout << "[MANAGER [demux]] returning packet to: " << inet_ntoa(sin->sin_addr) << " port: " << ntohs(sin->sin_port) << "\n";
 
 			assignment_message outgoing_msg{*group};
 

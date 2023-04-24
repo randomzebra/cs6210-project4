@@ -51,7 +51,7 @@ int GTStoreStorage::node_init() {
 	}
 	char buffer[BUFFER_SZE] = {0};
 	read(this->connect_fd, buffer, sizeof(buffer));
-	//std::cout << "STORAGE: Node init ack received '" << buffer << "'\n";
+	//std::cout << "STORAGE[" << listen_port << "]: Node init ack received '" << buffer << "'\n";
 	close(this->connect_fd);
 
 	//rePrep a socket and reset timeout to infinite
@@ -74,28 +74,7 @@ int GTStoreStorage::node_init() {
 	return 0;
 }
 
-
-// do something similar in manager
-//
-// - make new thread with msg demux
-// - pick what to do with thajt
 int GTStoreStorage::listen_for_msgs() {
-
-	// if i recieve a discovery message, make myself primary
-	//
-	//
-	// 2 types of discover msg:
-	// 	1. storage node, saying i'm avaible to the manager
-	// 	2. manager sending message to storage node saying you're primary now
-	//
-	//
-	// for type two:
-	// 	- cast into dicovery message struct
-	// 	- pull info out
-	// 	- populate replicas
-	// 	- connect to replicas
-	//Listen for assignment message:
-
 	char* buffer = (char*)malloc(BUFFER_SZE * sizeof(char));
 	if (!buffer) {
 		perror("listen_for_msgs, buffer malloc");
@@ -134,11 +113,17 @@ int GTStoreStorage::listen_for_msgs() {
 
 		if (com_demux(buffer, client_fd) != 0) {
 			close(client_fd);
-			std::cerr << "STORAGE: demux failed\n";
-			return -1;
-		}
+			std::cerr << "STORAGE[" << listen_port << "]: demux failed for " << sin.sin_port << "\n";
+			//return -1;
+		} else {
+			generic_message msg;
+			msg.type = ACK;
+			if (send(client_fd, &msg, sizeof(msg), 0) < 0) {
+				perror("STORAGE: send ack failed after demux");
+				return false;
+			} 
 
-		std::cout << "received message: " << buffer << "\n";
+		}
 
 		close(client_fd);
 	}
@@ -149,45 +134,98 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 	generic_message *msg = (generic_message *) buffer;
 	switch(msg->type) {
 		case S_INIT: {
-			std::cout << "STORAGE: init message recieved\n";
+			std::cout << "STORAGE[" << listen_port << "]: init message recieved\n";
 			assignment_message *msg = (assignment_message *) buffer;
-			if (handle_assignment_msg(msg) == -1) {
-				std::cout << "STORAGE: handle init msg failed\n";
-				return -1;
-			}
+			group = msg->group;
 			return 0;
 		}
 		case PUT: {
 			auto msg = (comm_message*)buffer;
-			std::cout << "[STORAGE] PUT (key=" << msg->key << ",value=" << msg->value << ")\n";
-			// add to self map and return. client doesn't care if propagation fails
-			store.insert({ msg->key, msg->value });
+			put(msg->key, msg->value);
 			handle_put_msg(msg);
 			return 0;
 		}
 		case GET:
-			std::cout << "STORAGE: get message recieved: TODO (" << buffer << ")\n";
+			std::cout << "STORAGE[" << listen_port << "]: get message recieved: TODO (" << buffer << ")\n";
+		case ACK:
+			std::cout << "STORAGE[" << listen_port << "]: ACK, ignoring\n";
 		default:
-			std::cout << "STORAGE: unhandled message recieved"<< msg->type <<"\n";
+			std::cout << "STORAGE[" << listen_port << "]: unhandled message recieved"<< msg->type <<"\n";
+			return -1;
 	}
 	return 0;
 }
 
-// handle init messages
-int GTStoreStorage::handle_assignment_msg(assignment_message* msg) {
-		std::cout << "STORAGE: recieved assignment msg ";
-		print_group(msg->group);
-
-		return 0;
-}
-
+// send PUT to every neighbor
 int GTStoreStorage::handle_put_msg(comm_message* msg) {
-	// 1. propagate to all other nodes
-	std::cerr << "STORAGE: TODO: handle_put_msg\n";
-	for (auto& node: group.neighbors) {
-		// connect
-		// send
-		// 	if times out, tell manager
+	if (listen_port != group.primary) { // only the primary broadcasts
+		return 0;
+	}
+
+
+	std::cout << "STORAGE[" << listen_port << "]: broadcasting key to group\n";
+	char buffer[BUFFER_SZE];
+	for (int i=0; i < group.num_neighbors; ++i) {
+		auto node = group.neighbors[i];
+		struct sockaddr_in addr;
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(node);
+
+		if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) <= 0) {
+			printf("Invalid address/ Address not supported \n");
+			return -1;
+		}
+		int fd;
+		if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+			perror("STORAGE: neighbor socket");
+			return -1;
+		}
+
+		if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+			if (errno == ETIMEDOUT) {
+				std::cerr << "STORAGE[" << listen_port << "]: neighbor died" << std::endl;
+
+				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
+					perror("STORAGE: put finalize ack connection");
+					return false;
+				}
+
+				node_failure_message response_message;
+				response_message.type = NODE_FAILURE;
+				response_message.node = node;
+				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
+					perror("STORAGE: put send failure message failed");
+					return false;
+				} 
+
+				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
+					perror("SERVER: put read storage failed");
+					return false;
+				}
+
+				if (((generic_message *) buffer)->type != ACK) {
+					std::cerr << "STORAGE[" << listen_port << "]: manager didnt respond w ack after death notification\n";
+				}
+			}
+
+			perror("STORAGE: put storage connect failed");
+			continue;
+		}
+
+		// if connection succeeds, send put(key, value) to storage node
+		if (send(fd, (void*)msg, sizeof(comm_message), 0) < 0) { // doesn't like me using &msg instead of buffer
+			perror("STORAGE: put send storage failed");
+			return false;
+		} 
+
+		if (read(fd, &buffer, sizeof(buffer)) < 0) {
+			perror("STORAGE: put read storage failed");
+			return false;
+		}
+		if (((generic_message *) buffer)->type != ACK) {
+			std::cerr << "STORAGE[" << listen_port << "]: neighbor didnt respond w ack after death notification\n";
+		}
+		close(fd);
 	}
 
 	return 0;
@@ -208,12 +246,28 @@ int GTStoreStorage::socket_init() {
 		perror("STORAGE: connect socket");
 		return -1;
 	}
+	
+	if ((this->neighborhood_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("STORAGE: neighbor socket");
+		return -1;
+	}
 
 	if (setsockopt(this->listen_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
         perror("STORAGE: Option Selection Failed");
         return -1;
     }
-
+//#struct timeval time_val_struct = { 0 };
+//#	time_val_struct.tv_sec = 5;
+//#	time_val_struct.tv_usec = 0;
+//#	if (setsockopt(this->neighborhood_fd, SOL_SOCKET, SO_RCVTIMEO, &time_val_struct, sizeof(time_val_struct)) < 0) {
+//#		perror("STORAGE: restart timeout opt failed");
+//#		return -1;
+//#	}
+//#
+	if (setsockopt(this->neighborhood_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+        perror("STORAGE: Option Selection on neighborhood Failed");
+        return -1;
+    }
     //int addrlen = sizeof(mang_connect_addr);
 	mang_connect_addr.sin_family = AF_INET;
     mang_connect_addr.sin_port = htons(PORT);
@@ -223,6 +277,18 @@ int GTStoreStorage::socket_init() {
         std::cout << "Invalid address/ Address not supported" << std::endl;
         return -1;
     }
+
+	struct sockaddr_in addr = {0};
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(0);  // Bind to a random available port
+
+	if (bind(this->listen_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("bind failed");
+		exit(EXIT_FAILURE);
+	}
+
+
 
 	/*cant connect because we don't know where, but we can start to listen*/
 	if (listen(this->listen_fd, 32) < 0) {
@@ -247,6 +313,12 @@ int GTStoreStorage::put(std::string key, val_t value) {
 	if (store.count(key) != 0) retVal = 1;
 	store[key] = value;
 	load++;
+
+	std::cout << "STORAGE[" << listen_port << "] store=";
+	for (auto& kv : store) {
+		std::cout << kv.first << " : " << kv.second;
+	}
+	std::cout << "\n";
 	return retVal;
 }
 
