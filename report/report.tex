@@ -107,7 +107,7 @@ the flow is significantly less complex:\\
     \includegraphics[scale=0.7]{img/Get.drawio.png}
 \end{center}
 
-\subsection{GTStore Manager}
+\subsection{GTStore Manager (Data Partitioning)}
 The manager is responsible for assigning and maintaining a an active map of keys to storage groups. It is the first point of contact for any client API call.
 The manager's primary function is to return to the client an accurate, up to date port for the key request, regardless of which operation. It is also responsible for updating
 groups by purging dead storage nodes in the event of Primary or Client timeouts.
@@ -151,5 +151,11 @@ specs.
     the primary sends an ack back to the client BEFORE it begins propagation to its replicas. The client simply does not care. The primary then sends a \texttt{PUT} message to each of 
     its replicas and sends a \texttt{FAIL} message to the manager for each node that fails. The manager performs the necessary purging, as does the primary to maintain consistent lists.
 \end{enumerate}
+
+\subsection{Data Consistency}
+Data consistency is maintained through replication. A node that fails a connection during replication for any reason is considered dead, even if it restarts on the same address later.
+This ensures that nodes within a group have consistent data. Since the client contacts the storage nodes directly, there is no need to keep data consistent from a manager, storage node
+perspective. In fact, the manager does not even store values, or use the value field in a put message in any way. Storage nodes are the only nodes to ever handle the actual storage of data.
 \section{Results}
+
 \end{document}
