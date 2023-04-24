@@ -325,8 +325,6 @@ int GTStoreStorage::socket_init() {
 		exit(EXIT_FAILURE);
 	}
 
-
-
 	/*cant connect because we don't know where, but we can start to listen*/
 	if (listen(this->listen_fd, 32) < 0) {
 		perror("STORAGE: listen failed");
@@ -339,7 +337,7 @@ int GTStoreStorage::socket_init() {
         perror("getsockname");
 		return -1; 
 	}
-	//this->listen_port = ntohs(sin.sin_port);
+
 	this->addr = sin;
 
 	return 0;

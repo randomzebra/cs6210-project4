@@ -176,19 +176,8 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 		// TODO: send packet to every storage node saying what group they're in
 		// for now, only send to primary
 
- 		int sockfd;
-		struct sockaddr_in servaddr;
-
-		// Create a socket
-		sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-		// Set up the server address and port number
-		memset(&servaddr, 0, sizeof(servaddr));
-		servaddr.sin_family = AF_INET;
-		//servaddr.sin_port = htons(group->primary.addr.sin_port);
-		servaddr.sin_port = group->primary.addr.sin_port;
-		servaddr.sin_addr.s_addr = group->primary.addr.sin_addr.s_addr;
-		//servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //TODO!
+ 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		struct sockaddr_in servaddr = group->primary.addr;
 
 		// Connect to the server
 		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
