@@ -77,6 +77,14 @@ int GTStoreStorage::node_init() {
 }
 
 
+// handle init messages
+int GTStoreStorage::handle_assignment_msg(char* buffer) {
+		assignment_message *msg = (assignment_message *) buffer;
+		std::cout << "STORAGE: recieved assignment msg ";
+		print_group(msg->group);
+
+		return 0;
+}
 // do something similar in manager
 //
 // - make new thread with msg demux
@@ -97,19 +105,52 @@ int GTStoreStorage::listen_for_msgs() {
 	// 	- populate replicas
 	// 	- connect to replicas
 	//Listen for assignment message:
-	char buffer[BUFFER_SZE];
+	char* buffer = (char*)malloc(BUFFER_SZE * sizeof(char));
+	if (!buffer) {
+		perror("listen_for_msgs, buffer malloc");
+		return -1;
+	}
+
 	struct sockaddr_in sin;
     socklen_t sinlen = sizeof(sin);
-    if (getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen) == -1) {
+	int sock_num;
+    sock_num = getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen);
+	if (sock_num == -1) {
         perror("getsockname");
 		return -1; 
 	}
+	std::cout << "sock num: " << sock_num << "\n";
 
 	while(true) {
 		if (accept(this->listen_fd, (struct sockaddr *)&sin, &sinlen) < 0) { //This happens either at the beginning when init groups are assigned or when primary dies
 			perror("STORAGE: Discovery accept failed");
 		}
 
+		if (read(this->listen_fd, buffer, sizeof(buffer)) < 0) {
+			perror("STORAGE: Node init Read failed");
+			return -1;
+		}
+		std::cout << "STORAGE: recv message: '" << buffer << "'\n";
+
+		generic_message *msg = (generic_message *) buffer;
+		switch(msg->type) {
+			case S_INIT:
+				std::cout << "STORAGE: init message recieved\n";
+				if (handle_assignment_msg(buffer) == -1) {
+					std::cout << "STORAGE: handle init msg failed\n";
+					return -1;
+				}
+				continue;
+			case PUT:
+				std::cout << "STORAGE: put message recieved: TODO (" << buffer << ")\n";
+				continue;
+			case GET:
+				std::cout << "STORAGE: get message recieved: TODO (" << buffer << ")\n";
+				continue;
+			default:
+				std::cout << "STORAGE: unhandled message recieved\n";
+				return -1;
+		}
 		//TODO: PUT, GET, and DISC (assign to primary and give replicas)
 	}
 	

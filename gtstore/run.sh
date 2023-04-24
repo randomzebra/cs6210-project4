@@ -9,9 +9,10 @@ sleep 5
 
 # Launch couple GTStore Storage Nodes
 ./bin/storage &
-sleep 5
+sleep 1
 ./bin/storage &
-sleep 5
+sleep 1
+
 
 # Launch the client testing app
 # Usage: ./test_app <test> <client_id>

@@ -106,20 +106,26 @@ int GTStoreManager::node_init() {
 	}
 	std::cout << "}\n";
 
-	vector<store_grp_t> grp_assignments;
-	while (uninitialized.size() > 0) {
-		store_grp_t new_grp;
-		for (size_t i = 0; i < uninitialized.size() && i < (unsigned) k; i++) {
-			new_grp.push_back(uninitialized.back());
+
+
+	vector<store_grp_t> groups;
+	while(uninitialized.size() > 0) {
+		store_grp_t group{};
+		group.primary = uninitialized.back();
+		uninitialized.pop_back();
+		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
+			group.num_neighbors++;
+			group.neighbors[i] = uninitialized.back();
 			uninitialized.pop_back();
 		}
-		rr.push(&new_grp);
-		grp_assignments.push_back(new_grp);
-	} 
-	
-	//TODO: Push group assignments to primaries
-	push_group_assignments(grp_assignments);
+		groups.push_back(group);
+	}
 
+	for (auto& group : groups) {
+		print_group(group);
+	}
+	
+	push_group_assignments(groups);
 	return 0;
 }
 
@@ -149,7 +155,7 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 }
 
 // tell a storage node that it's a primary and here are its children
-void GTStoreManager::push_group_assignments(vector<store_grp_t> grp_assignments) {
+void GTStoreManager::push_group_assignments(vector<store_grp_t> groups) {
 	// called in node_init
 	// needs to be called when it recieves a failure of a primary node, reassign primary node from source group
 	//
@@ -160,43 +166,50 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> grp_assignments)
 	// send message
 
 
-	std::cout << "group assignments\n";
-	int i = 0;
-	for (auto& group : grp_assignments) {
-		std::cout << "\t" << i << ": ";
-		for (auto& socket : group) {
-			std::cout << socket;
-		}
-		std::cout << "\n";
-		i++;
-	}
-
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
-	
 
-	if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
-		<= 0) {
-		printf(
-			"\nInvalid address/ Address not supported \n");
+	/*
+	if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr) <= 0) {
+		printf("\nInvalid address/ Address not supported \n");
 		return;
 	}
+	*/
 
-	for (auto it = grp_assignments.begin(); it != grp_assignments.end(); ++it) {
-		assignment_message msg;
-		msg.type = DISC; 
-		store_grp_t grp = *it;
-		int counter = 0;
-		for(auto last = grp.rbegin(); last != grp.rend(); ++last) {
-			if (last == grp.rbegin()) {
-				in_addr.sin_port = htons(*last); //Set connection addr
-				continue;
-			}
+	for (auto& group : groups) {
+		// TODO: send packet to every storage node saying what group they're in
+		// for now, only send to primary
 
-			if (counter >= 25) return; //Limit replicas to 25 cap
-			msg.grp_assigment[counter] = *last;
-			counter++;
+ 		int sockfd;
+		struct sockaddr_in servaddr;
+
+		// Create a socket
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+		// Set up the server address and port number
+		memset(&servaddr, 0, sizeof(servaddr));
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_port = htons(group.primary);
+		servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+		// Connect to the server
+		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
+			perror("SERVER: connect to storage node during init");
+			return;
 		}
+		
+		assignment_message msg{};
+		msg.type = S_INIT;
+		msg.group = group;
+
+		if (send(sockfd, (void*)&msg, sizeof(msg), 0) == -1) {
+			perror("SERVER: send group msg");
+			return;
+		};
+
+		// Close the socket
+		close(sockfd);
+		// TODO: listen for ACK?
 	}
 }
 

@@ -27,16 +27,22 @@
 using namespace std;
 
 typedef string val_t; //Per Piazza @327, this is ok, and 
-typedef vector<uint32_t> store_grp_t;
+
+typedef struct { 
+	uint32_t primary;
+	uint32_t num_neighbors;
+	uint32_t neighbors[25]; //Assume a hardcap of 25 replicas
+} store_grp_t;
 
 enum MSG_TYPE {
 	DISC, //Storage discovery
-	PUT,
-	GET,
+	PUT, // PUT a key
+	GET, // GET a key
 	HEARTBEAT,
 	ACKPUT,
 	ACKGET,
-	FAIL
+	FAIL,
+	S_INIT	// Storage init (who is primary, who are neighbors)
 };
 
 /*
@@ -53,14 +59,23 @@ enum MSG_TYPE {
 * 
 */
 
-struct discovery_message{
+
+static void print_group(store_grp_t group) {
+	std::cout << "primary=" << group.primary << " num_neighbors=" << group.num_neighbors << " neighbors=(";
+	for (int i=0; i < group.num_neighbors; ++i) {
+		std::cout << "," << group.neighbors[i];
+	}
+	std::cout << "\n";
+}
+
+struct discovery_message {
 	uint8_t type;
 	uint32_t discovery_port;
 };
 
 struct assignment_message {
 	uint8_t type;
-	uint32_t grp_assigment[25]; //Assume a hardcap of 25 replicas
+	store_grp_t group;
 };
 
 //Used to demux message type
@@ -133,6 +148,7 @@ class GTStoreStorage {
 				uint32_t listen_port;
 				struct sockaddr_in mang_connect_addr;
 				store_grp_t replicas; //All replicas, excluding itself.
+				int handle_assignment_msg(char* buffer);
 		public:
 				void init();
 
