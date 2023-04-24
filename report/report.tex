@@ -28,7 +28,9 @@ Each node (client, manager, storage) exposes a unique port that can be connected
 This is the "listen" port. For the manager class, this port is static and can only be configured before runtime.
 For the other nodes, their listen port is randomly chosen by the OS at runtime and it is their responsibility to make the manager aware of their listening port number.
 In our case, all nodes are on the same local IP address. However, in the event that nodes are spread out on different machines, the user or daemon starting the storage and client
-nodes would be responsible for knowing which IP address the manager is on, and the code would be edited to take in a command line input to set the ip address.
+nodes would be responsible for knowing which IP address the manager is on, and the code would be edited to take in a command line input to set the manager IP address
+they would be connecting to. The discovery message the storage node sends to the manager would also be changed to contain a return ip address in addition to a return port.
+This information would also need to passed to the client when giving out primary nodes to connect to, and to storage nodes when passing out replica information.
 
 
 \subsection{Packet Types}
@@ -37,7 +39,8 @@ There are multiple types of packets in our architecture but each type begins wit
 The packet types are as follows
 \begin{enumerate}
     \item \texttt{DISC}
-    \subitem used for storage node initialization. This is how the manager discovers the children
+    \subitem used for storage node initialization. This is how the manager discovers the children, and informs them that they are a primary in the event of node 
+    failure or system initialization. From a storage nodes perspective, there is no distinction between the two.
     \item \texttt{PUT}
     \subitem used when a client or storage node wants to store a key
     \item \texttt{GET}
