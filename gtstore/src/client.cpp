@@ -99,17 +99,11 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		return false;
 	}
 
-	std::cout << "[CLIENT] recieved response... type=" << ((generic_message*)buffer)->type << "\n";
 	if (((generic_message *) buffer)->type == S_INIT) {
-		std::cout << "[CLIENT] recieved response from PUT ";
 		auto msg = (assignment_message *) buffer;
+		std::cout << "[CLIENT] recieved response from PUT, primary port=" << msg->group.primary << "\n";
 		print_group(msg->group);
-	}
-	
-	if (((generic_message *) buffer)->type == ACKPUT) { //Received an ACK w/ a storage port from mngr
 
-		port_message * mng_resp = (port_message *) buffer;
-		std::cout << "[CLIENT] recieved ACK from manager with port # " << mng_resp->port << "\n";
 		if(restart_connection(1) < 0) { //Restart w/ timeout
 			std::cerr << "Failed to restart connection after put mangr ACK" << std::endl;
 			return false;
@@ -118,8 +112,9 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		//Construct storage address w/ port
 		struct sockaddr_in in_addr;
 		in_addr.sin_family = AF_INET;
-		in_addr.sin_port = htons(mng_resp->port);
+		in_addr.sin_port = htons(msg->group.primary);
 
+		// TODO: IP Address
 		if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
 			<= 0) {
 			printf(
@@ -131,17 +126,18 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
 			if (errno == ETIMEDOUT) { //Primary timed out, dead
 				std::cerr << "Primary dead" << std::endl;
-				// close the current socket and re-open it bc we can only use a socket once
+				// connect back to manager
 				restart_connection(0);
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 					perror("CLIENT: put finalize ack connection");
 					return false;
 				}
 
-				// tell manager the node in the port they gave us failed
-				mng_resp->type = FAIL;
-				if (send(this->connect_fd, mng_resp, sizeof(&mng_resp), 0) < 0) {
-					perror("CLIENT: put send mngr failed");
+				node_failure_message response_message;
+				response_message.type = NODE_FAILURE;
+				response_message.node = msg->group.primary;
+				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
+					perror("CLIENT: put send failure message failed");
 					return false;
 				} 
 
@@ -150,6 +146,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 					return false;
 				}
 
+				// TODO: maybe not... retry the same process again?
 				// the manager responds with an ACK after we tell it a node has died
 				if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
 					restart_connection(0);
@@ -184,7 +181,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			// TODO: make new message: type port message
 			//
 			// manager needs to add key for that storage group
-			msg.type = ACKPUT;
+			msg->type = ACKPUT;
 			if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 				perror("CLIENT: put finalize ack connection");
 				return false;
@@ -206,6 +203,8 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			}
 		}
 		
+	} else {
+		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
 	}
 
 	return false;

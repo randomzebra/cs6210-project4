@@ -39,10 +39,10 @@ enum MSG_TYPE {
 	DISC, //Storage discovery
 	PUT, // PUT a key
 	GET, // GET a key
+	NODE_FAILURE, // A node has failed
 	HEARTBEAT,
 	ACKPUT,
 	ACKGET,
-	FAIL,
 	S_INIT	// Storage init (who is primary, who are neighbors) // TODO: rename STORAGE_GRP
 };
 
@@ -85,15 +85,23 @@ struct assignment_message {
 struct generic_message {
 	uint8_t type;
 };
+
 struct port_message {
 	uint8_t type;
 	uint32_t port;
 	char key[MAX_KEY_BYTE_PER_REQUEST];
 };
+
 struct comm_message {
 	uint8_t type;
 	char key[MAX_KEY_BYTE_PER_REQUEST];
 	char value[MAX_KEY_BYTE_PER_REQUEST];
+};
+
+struct node_failure_message {
+	uint8_t type;
+	char key[MAX_KEY_BYTE_PER_REQUEST]; // TODO: could be relevant
+	uint32_t node;
 };
 
 class GTStoreClient {

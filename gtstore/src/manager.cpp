@@ -288,8 +288,8 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 	case ACKPUT:
 		std::cout << "[MANAGER] recieved ackput, TODO\n";
 		break;
-	case FAIL:
-		std::cout << "[MANAGER] recieved fail, TODO\n";
+	case NODE_FAILURE:
+		std::cout << "[MANAGER] a node has failed! TODO\n";
 		break;
 	default:
 		std::cout << "[MANAGER] unknown msg type!\n";
