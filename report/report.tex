@@ -23,6 +23,7 @@
     }
 \end{enumerate}
 
+\section{Storage Components}
 \subsection{Sockets}
 Each node (client, manager, storage) exposes a unique port that can be connected to by multiple processes.
 This is the "listen" port. For the manager class, this port is static and can only be configured before runtime.
@@ -39,8 +40,7 @@ There are multiple types of packets in our architecture but each type begins wit
 The packet types are as follows
 \begin{enumerate}
     \item \texttt{DISC}
-    \subitem used for storage node initialization. This is how the manager discovers the children, and informs them that they are a primary in the event of node 
-    failure or system initialization. From a storage nodes perspective, there is no distinction between the two.
+    \subitem used for storage node initialization. This is how the manager discovers the children.
     \item \texttt{PUT}
     \subitem used when a client or storage node wants to store a key
     \item \texttt{GET}
@@ -50,35 +50,47 @@ The packet types are as follows
     \item \texttt{ACKGET}
     \subitem response given by storage node when GET was successful
     \item \texttt{FAIL}
-    \subitem General fail item
+    \subitem General Failure message sent by storage node or client upon connection timeout. Sent to manager, and contains failing node to purge from the record
     \item \texttt{S\_INIT}
-    \subitem Primarily used for storage node initialization. This packet contains group size, members, and the primary node
+    \subitem and informs them that they are a primary in the event of node 
+    failure or system initialization. From a storage nodes perspective, there is no distinction between the two.
 \end{enumerate}
 
-\subsection{Storage Node Initialization}
+\subsection{Storage Node/Initialization}
 Storage nodes are initialized separately from the manager daemon.
 When a storage node is spawned, it sends a \texttt{DESC} packet to the manager and is added to the pool of available nodes.
 Each storage node is apart of a group as determined by the manager.
 Groups are assigned ina round robin fashion to ensure a balanced load across all nodes.
 In every group there exists one primary node that is the primary communication device for the client.
-Each node within a group is made aware of its neighbors by an \texttt{S\_INIT} packet from the server.
-
-\subsection{\texttt{PUT} operation}
+The primary within a group is made aware of its neighbors by an \texttt{S\_INIT} packet from the server. If the primary where to die, 
+the manager will send a \texttt{S\_INIT} with a new group with the dead node purged to the next replica in line. If a replica where to die,
+the manager will update the primary with a new group with the dead node purged with the same message.
+\pagebreak
+\subsection{Client \texttt{PUT} operation}
 When a client wants to store a value at a given key into a node, it first asks the manager for the node group responsible for that key.
 The packet sent to the manager has a field for key and a field for value.
 The value field is a stringified version of the original vector in which each value is joined by a pipe deliminator.
-If that key has yet to be tracked, the server uses round robin to find an available group and assigns it to the given key.
+If that key has yet to be tracked, the server uses round robin to find an available group and assigns it to the given key. This ensures balance among
+existing groups.
 
 The client is then given a group struct with the port number for the primary storage node and a list of it's neighbors for redundancy. 
 This list is never used directly by the client.
 
 A client then sends the same \texttt{PUT} packet to the primary node and is given a \texttt{ACKPUT} response if successful.
 
-In the background, the primary storage node broadcasts that same packet out to all of it's neighbors.
+In the background, the primary storage node broadcasts that same packet out to all of it's neighbors. If the client or primary server time out a connection
+to a node, it sends a failure connection with the failing port to the manager, which will purge the group of that port. 
 
-\subsection{\texttt{GET} operation}
+A diagram of the program flow is included below:\\
+\begin{center}
+    \includegraphics[scale=0.7]{img/Put.drawio.png}
+\end{center}
+
+
+\pagebreak
+\subsection{Client \texttt{GET} operation}
 When a client desires a value for a given key, it first asks the manager to find the group responsible for that key.
-If that key does not exist in the manager's housekeeping, a generalized \texttt{FAIL} packet is returned.
+If that key does not exist in the manager's housekeeping, a generalized \texttt{FAIL} packet is returned. The client should then fail the get request.
 
 If the key does exist, the client is returned a group struct with the port number for the primary storage node and a list of it's neighbors for redundancy. 
 Again, this list is never used directly by the client.
@@ -89,29 +101,55 @@ In this packet, the \texttt{value} field is now non-null.
 In it is a string delimitated by |. 
 The client library splits this string into substrings based around this deliminator and returns a vector to the original caller.
 
+A diagram of the program flow is included below. Note that because there is no need to contact replicas, 
+the flow is significantly less complex:\\
+\begin{center}
+    \includegraphics[scale=0.7]{img/Get.drawio.png}
+\end{center}
 
+\subsection{GTStore Manager}
+The manager is responsible for assigning and maintaining a an active map of keys to storage groups. It is the first point of contact for any client API call.
+The manager's primary function is to return to the client an accurate, up to date port for the key request, regardless of which operation. It is also responsible for updating
+groups by purging dead storage nodes in the event of Primary or Client timeouts.
+
+\begin{itemize}
+    \item \textbf{\underline{Load Balancing and Group Assignment:}} The manager initially assigns discovered storage nodes to storage groups, where the first node in the group
+    is a primary, and the rest are replicas. It propagates this info to the primary node. Every time a new key is called, it assigns a group to the key in a round robin fashion. 
+    This implements a load balancing scheme where all groups have a comparable amount of keys assigned to them.
+    \item \textbf{\underline{Node Failure:}} When a primary or a client fails to connect to a replica or a primary respectively, a \texttt{FAIL} message is sent to the manager. 
+    The manager identifies if the failure is a primary or a replica (by where it is in the group, primaries are always the head), and purges it from the group. If the purged
+    node is a primary, it assigns a new primary and sends it a \texttt{S\_INIT} packet. If the node is a replica, it sends the existing primary a \texttt{S\_INIT} packet with the 
+    new group assignments. 
+\end{itemize}
 
 \subsection{Data Management}
 \begin{enumerate}
     \item manager has key group map
-        \subitem how its used on put
-        \subitem how its used on get
-    \item each node has a view of what keys it has
+        \subitem PUT: the key map is used to determine if an existing group holds the key. If it does, the manager returns this group. Otherwise, the manager assigns a new group
+        with the Round robin scheme discussed above.
+        \subitem GET: the key map is used to determine if an existing group holds the key. If it does, the manager returns this group. Otherwise, the manager returns a \texttt{FAIL}
+        message as an indication that the client should return an empty string.
+    \item each node has a view of what keys it has. Only the primary needs it, but all nodes have it for flexibility.
 \end{enumerate}
 \subsection{Data Redundancy}
-how data is duplicated across nodes
+The primary is responsible for propagating data to its replicas. This ensures that there are copies of any given put in the system. Once a client fails to connect to a primary,
+it notifies the manager and a new primary is assigned to take the old one's place. After all primaries in the group have been exhausted, the manager will fail out, as per the project
+specs. 
 \subsection{Node Failure}
 \begin{enumerate}
-    \item no heart beat and why
-    \item One node is primary, it has neighbors
+    \item We do not use a heartbeat. This only serves to clog the manager with addition messages that perform a redundant operation that a client or primary storage node timeout
+    serves to indicate. All a heartbeat serves to do is to ensure that the manager can self-discover failed nodes. This requires it to timeout on every node it sends a heart beat too.
+    Since a socket can only connect to a single node, we must open N sockets, likely in N threads, to perform a polling operation. Our scheme performs the same functionality but does it
+    in a greedy fashion. It only handles node failures when it NEEDS to. This results in less complexity and overhead for the manager at the expense of marginal performance gains on the 
+    client side. The scenario in which the heartbeat would benefit the manager is when a node dies when a client has not attempted to interact with it for a long time. This heartbeat 
+    ensures that the next time the client tries to access that particular storage group, the manager will provide up to date information. However, this situation is relatively rare, and 
+    we would still need to handle the case in which the primary node dies in between the time when a heartbeat occurs and a manager sends a group to the client. Considering all of these factors
+    combined, we decide to not use a heartbeat to discover dead nodes. 
+    \item There are two cases of node failures: primary node death and replica node death. When a primary dies, it will be discovered by the client trying to perform an action. This is 
+    handled by sending a \texttt{FAIL} message to the manager, and the manager performing the necessary primary reassignment discussed above. The next is replica death. From the perspective
+    of the client, replica death has no ramification to expected behavior. The client still receives the queried value or puts the requested value on the primary group. This is why
+    the primary sends an ack back to the client BEFORE it begins propagation to its replicas. The client simply does not care. The primary then sends a \texttt{PUT} message to each of 
+    its replicas and sends a \texttt{FAIL} message to the manager for each node that fails. The manager performs the necessary purging, as does the primary to maintain consistent lists.
 \end{enumerate}
-
-Two discovery cases
-\begin{enumerate}
-    \item Client discovers node died
-    \item Node discovers neighbor died
-\end{enumerate}
-
-In both cases, a packet of type \texttt{NODE\_FAILURE} is sent to the manager.
 \section{Results}
 \end{document}
