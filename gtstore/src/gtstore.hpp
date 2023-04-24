@@ -65,8 +65,8 @@ enum MSG_TYPE {
 
 static void print_group(store_grp_t group) {
 	std::cout << "primary=" << group.primary << " num_neighbors=" << group.num_neighbors << " neighbors=(";
-	for (int i=0; i < group.num_neighbors; ++i) {
-		std::cout << "," << group.neighbors[i];
+	for (uint32_t i=0; i < group.num_neighbors; ++i) {
+		std::cout << group.neighbors[i] << ",";
 	}
 	std::cout << "\n";
 }

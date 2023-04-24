@@ -247,7 +247,7 @@ int GTStoreManager::listen_for_msgs() {
 			continue;
 		}
 
-		std::cout << "MANAGER: received message: " << buffer << "\n";
+		// std::cout << "MANAGER: received message: " << buffer << "\n";
 
 		comDemux(buffer, &sin, client_fd);
 		close(client_fd);
@@ -255,7 +255,6 @@ int GTStoreManager::listen_for_msgs() {
 }
 
 void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
-	std::cout << "[comDemux]: read message: '" << buffer << "'\n";
 	auto type = ((generic_message *)buffer)->type;
 
 	switch (type) {
@@ -303,7 +302,6 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		}
 		break;
 		//comm_message *msg = (comm_message *) buffer;
-		break;
 	case ACKPUT:
 		std::cout << "[MANAGER] recieved ackput, TODO\n";
 		break;
@@ -311,7 +309,7 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		std::cout << "[MANAGER] a node has failed! TODO\n";
 		break;
 	default:
-		std::cout << "[MANAGER] unknown msg type!\n";
+		std::cout << "[MANAGER] unknown msg type! type=" << type << "\n";
 	}
 }
 
@@ -330,8 +328,8 @@ std::shared_ptr<store_grp_t> GTStoreManager::put(std::string key, val_t val) {
 
 		key_group_map.insert({key, group});
 
-		std::cerr << "MANAGER: group to return ";
-		print_group(*group);
+		//std::cerr << "MANAGER: group to return ";
+		//print_group(*group);
 		return group;
 	} else {
 		return search->second; //else return the found grp.

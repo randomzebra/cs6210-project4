@@ -56,7 +56,7 @@ int GTStoreClient::socket_init() {
 
 vector<string> GTStoreClient::get(string key) {
 
-		cout << "Inside GTStoreClient::get() for client: " << client_id << " key: " << key << "\n";
+		//cout << "Inside GTStoreClient::get() for client: " << client_id << " key: " << key << "\n";
 		vector<string> value;
 		// Get the value!
 		if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {

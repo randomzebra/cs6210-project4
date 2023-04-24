@@ -157,7 +157,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			return 0;
 		}
 		case GET: {
-			std::cout << "STORAGE[" << listen_port << "]: get message recieved: TODO (" << buffer << ")\n";
+			std::cout << "STORAGE[" << listen_port << "]: get: key=(" << buffer << ")\n";
 
 			auto msg = (comm_message*)buffer;
 			comm_message resp;
@@ -337,11 +337,11 @@ int GTStoreStorage::put(std::string key, val_t value) {
 	store[key] = value;
 	load++;
 
-	std::cout << "STORAGE[" << listen_port << "] store=";
+	std::cout << "STORAGE[" << listen_port << "] store= {";
 	for (auto& kv : store) {
-		std::cout << kv.first << " : " << kv.second;
+		std::cout << kv.first << " : " << kv.second << ",";
 	}
-	std::cout << "\n";
+	std::cout << "}\n";
 	return retVal;
 }
 
