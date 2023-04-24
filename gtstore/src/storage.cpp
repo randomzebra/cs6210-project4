@@ -116,12 +116,12 @@ int GTStoreStorage::listen_for_msgs() {
 			std::cerr << "STORAGE[" << listen_port << "]: demux failed for " << sin.sin_port << "\n";
 			//return -1;
 		} else {
-			generic_message msg;
-			msg.type = ACK;
-			if (send(client_fd, &msg, sizeof(msg), 0) < 0) {
-				perror("STORAGE: send ack failed after demux");
-				return false;
-			} 
+			//generic_message msg;
+			//msg.type = ACK;
+			//if (send(client_fd, &msg, sizeof(msg), 0) < 0) {
+			//	perror("STORAGE: send ack failed after demux");
+			//	return false;
+			//} 
 
 		}
 
@@ -143,6 +143,17 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			auto msg = (comm_message*)buffer;
 			put(msg->key, msg->value);
 			handle_put_msg(msg);
+
+
+			comm_message resp;
+			resp.type = ACKPUT;
+			strcpy(resp.key, msg->key);
+			strcpy(resp.value, msg->value);
+			if (send(client_fd, &resp, sizeof(comm_message), 0) < 0) {
+				perror("STORAGE: send ack failed after demux");
+				return false;
+			} 
+
 			return 0;
 		}
 		case GET:
@@ -222,7 +233,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 			perror("STORAGE: put read storage failed");
 			return false;
 		}
-		if (((generic_message *) buffer)->type != ACK) {
+		if (((generic_message *) buffer)->type != ACKPUT) {
 			std::cerr << "STORAGE[" << listen_port << "]: neighbor didnt respond w ack after death notification\n";
 		}
 		close(fd);
