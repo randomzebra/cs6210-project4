@@ -29,10 +29,22 @@ using namespace std;
 
 typedef string val_t; //Per Piazza @327, this is ok, and 
 
+struct node_t {
+	struct sockaddr_in addr;
+	bool alive;
+
+	bool operator==(const node_t &n) const {
+		return n.addr.sin_port == addr.sin_port && n.addr.sin_addr.s_addr == addr.sin_addr.s_addr;
+    }
+	bool operator<(const node_t &n) const {
+		return n.addr.sin_port < addr.sin_port && n.addr.sin_addr.s_addr < addr.sin_addr.s_addr;
+    }
+};
+
 typedef struct { 
-	uint32_t primary;
+	node_t primary;
 	uint32_t num_neighbors;
-	uint32_t neighbors[25]; //Assume a hardcap of 25 replicas
+	node_t neighbors[25]; //Assume a hardcap of 25 replicas
 } store_grp_t;
 
 enum MSG_TYPE {
@@ -63,17 +75,23 @@ enum MSG_TYPE {
 */
 
 
+static void print_node(node_t n) {
+	std::cout << "(" << n.addr.sin_addr.s_addr << ":" << n.addr.sin_port << ", alive=" << (n.alive ? "1": "0") << ")";
+}
 static void print_group(store_grp_t group) {
-	std::cout << "primary=" << group.primary << " num_neighbors=" << group.num_neighbors << " neighbors=(";
-	for (int i=0; i < group.num_neighbors; ++i) {
-		std::cout << "," << group.neighbors[i];
+	std::cout << "primary=(";
+	print_node(group.primary);
+	std::cout << ") num_neighbors=" << group.num_neighbors << " neighbors=(";
+	for (uint32_t i=0; i < group.num_neighbors; ++i) {
+		print_node(group.neighbors[i]);
+		std::cout << ",";
 	}
 	std::cout << "\n";
 }
 
 struct discovery_message {
 	uint8_t type;
-	uint32_t discovery_port;
+	node_t node;
 };
 
 struct assignment_message {
@@ -104,7 +122,7 @@ struct comm_message {
 struct node_failure_message {
 	uint8_t type;
 	char key[MAX_KEY_BYTE_PER_REQUEST]; // TODO: could be relevant
-	uint32_t node;
+	node_t node;
 };
 
 class GTStoreClient {
@@ -127,9 +145,10 @@ class GTStoreClient {
 
 class GTStoreManager {
 		private:
-				vector<uint32_t> uninitialized; //Ports's of uninitialized nodes
+				vector<node_t> uninitialized; //Ports's of uninitialized nodes
 				queue<std::shared_ptr<store_grp_t>> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
 				std::map<std::string, std::shared_ptr<store_grp_t>> key_group_map;
+				std::map<node_t, std::vector<std::string>> node_keys_map;
 				int total_nodes;
 				int k;
 				bool live;
@@ -144,6 +163,7 @@ class GTStoreManager {
 				std::shared_ptr<store_grp_t> put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				int put_network(std::string key, val_t val); //Should implement uninitialized/RR logic
 				void comDemux(char* buffer, sockaddr_in* sin, int client_fd);
+				int handle_node_failure(node_t node);
 				int socket_init();
 				int node_init();
 				int listen_for_msgs();
@@ -156,7 +176,7 @@ class GTStoreStorage {
 				//Nodes should be identified by PID
 				int load; //Measure of load on current node
 				int listen_fd, connect_fd, neighborhood_fd;
-				uint32_t listen_port;
+				struct sockaddr_in addr;
 				struct sockaddr_in mang_connect_addr;
 				store_grp_t group; //All replicas, excluding itself.
 				int handle_put_msg(comm_message* msg);
@@ -166,7 +186,7 @@ class GTStoreStorage {
 
 				int socket_init();
 				int node_init();
-				int put(std::string key, val_t value); //TODO: implement replica propagation
+				int put(std::string key, val_t value);
 				val_t get(std::string key);
 				bool leader; //Is leader or replica
 				int get_load();

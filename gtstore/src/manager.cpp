@@ -84,7 +84,7 @@ int GTStoreManager::node_init() {
 		if (msg->type != DISC) {
 			continue; //Drop any command messages at this stage
 		} else {
-			this->uninitialized.push_back(msg->discovery_port);
+			this->uninitialized.push_back(msg->node);
 		}
 
 		if (send(incoming, "Discover ack", strlen("Discover ack"), 0) < 0) {
@@ -97,7 +97,8 @@ int GTStoreManager::node_init() {
 
 	std::cout << "discovered nodes: {";
 	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
-		 std::cout << " " << *it;
+		 std::cout << " ";
+		 print_node(*it);
 	}
 	std::cout << "}\n";
 
@@ -175,17 +176,8 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 		// TODO: send packet to every storage node saying what group they're in
 		// for now, only send to primary
 
- 		int sockfd;
-		struct sockaddr_in servaddr;
-
-		// Create a socket
-		sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-		// Set up the server address and port number
-		memset(&servaddr, 0, sizeof(servaddr));
-		servaddr.sin_family = AF_INET;
-		servaddr.sin_port = htons(group->primary);
-		servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+ 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		struct sockaddr_in servaddr = group->primary.addr;
 
 		// Connect to the server
 		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
@@ -247,7 +239,7 @@ int GTStoreManager::listen_for_msgs() {
 			continue;
 		}
 
-		std::cout << "MANAGER: received message: " << buffer << "\n";
+		// std::cout << "MANAGER: received message: " << buffer << "\n";
 
 		comDemux(buffer, &sin, client_fd);
 		close(client_fd);
@@ -255,7 +247,6 @@ int GTStoreManager::listen_for_msgs() {
 }
 
 void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
-	std::cout << "[comDemux]: read message: '" << buffer << "'\n";
 	auto type = ((generic_message *)buffer)->type;
 
 	switch (type) {
@@ -303,15 +294,22 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		}
 		break;
 		//comm_message *msg = (comm_message *) buffer;
-		break;
 	case ACKPUT:
 		std::cout << "[MANAGER] recieved ackput, TODO\n";
 		break;
-	case NODE_FAILURE:
-		std::cout << "[MANAGER] a node has failed! TODO\n";
+	case NODE_FAILURE: {
+		std::cout << "[MANAGER] a node has failed!\n";
+		auto msg = (node_failure_message*)buffer;
+		if (handle_node_failure(msg->node) != 0) {
+			std::cerr << "[MANAGER] unable to handle node failure\n";
+			// send NACK
+		} else {
+			// send ACK
+		}
 		break;
+	}
 	default:
-		std::cout << "[MANAGER] unknown msg type!\n";
+		std::cout << "[MANAGER] unknown msg type! type=" << type << "\n";
 	}
 }
 
@@ -330,8 +328,8 @@ std::shared_ptr<store_grp_t> GTStoreManager::put(std::string key, val_t val) {
 
 		key_group_map.insert({key, group});
 
-		std::cerr << "MANAGER: group to return ";
-		print_group(*group);
+		//std::cerr << "MANAGER: group to return ";
+		//print_group(*group);
 		return group;
 	} else {
 		return search->second; //else return the found grp.
@@ -342,8 +340,55 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 	return -1;
 }
 
+int GTStoreManager::handle_node_failure(node_t node) {
+	auto search = node_keys_map.find(node);
+	
+	if (search == node_keys_map.end()) {
+		std::cerr << "[MANAGER] node_failure: node (";
+		print_node(node);
+		std::cerr << ") DNE in node_keys_map\n";
+		return 0;
+	}
 
+	// loop through every key and remove node from group
+	for (const auto& key : search->second) {
+		auto grp_search = key_group_map.find(key);
+		
+		if (grp_search == key_group_map.end()) {
+			std::cerr << "[MANAGER] node_failure: key (" << key << ") DNE in key_group_map\n";
+			continue;
+		}
 
+		auto group = grp_search->second;
+		if (group->num_neighbors == 0) {
+			std::cerr << "[MANAGER] node_failure: num neighbors = 0, no alternatives!\n";
+			group->primary.alive = false;
+			return -1;
+		}
+
+		std::cerr << "[MANAGER] node_failure: prev group";
+		print_group(*group);
+
+		if (group->primary.addr.sin_port == node.addr.sin_port) { // TODO: better equity
+			// assign first neighbor as primary
+			auto replacement = group->neighbors[0];
+			group->primary = replacement;
+			group->neighbors[0].alive = false;
+			group->num_neighbors--;
+		} else {
+			for (auto i=0; i < group->num_neighbors; ++i) {
+				if (group->neighbors[i].addr.sin_port == node.addr.sin_port) {
+					group->neighbors[i].alive = false;
+				}
+			}
+
+		}
+		std::cerr << "[MANAGER] node_failure: new group";
+		print_group(*group);
+	}
+
+	return 0;
+}
 
 int main(int argc, char **argv) {
 	int n, k;
