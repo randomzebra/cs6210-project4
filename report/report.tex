@@ -10,18 +10,96 @@
 \subsection{Files}
 \begin{enumerate}
     \item \texttt{storage.cpp}
+    \subitem{
+        This file defines the structure for each storage nodes in the homogeneous structure that powers this distributed file system.
+    } 
     \item \texttt{client.cpp}
+    \subitem{
+        This class abstracts interactions with the manager for the user.
+    }
     \item \texttt{manager.cpp}
+    \subitem{
+        This class is in charge of managing each storage node. Client nodes contact the server before making any GET or PUT requests to client nodes. 
+    }
 \end{enumerate}
 
 \subsection{Sockets}
-What sockets are created/How they are used
+Each node (client, manager, storage) exposes a unique port that can be connected to by multiple processes.
+This is the "listen" port. For the manager class, this port is static and can only be configured before runtime.
+For the other nodes, their listen port is randomly chosen at runtime and it is their responsibility to make the manager aware of their listening port number.
+
+
+\subsection{Packet Types}
+There are multiple types of packets in our architecture but each type begins with a \texttt{uint\_8} header describing the packet type for easy parsing.
+
+The packet types are as follows
+\begin{enumerate}
+    \item \texttt{DISC}
+    \subitem used for storage node initialization. This is how the manager discovers the children
+    \item \texttt{PUT}
+    \subitem used when a client or storage node wants to store a key
+    \item \texttt{GET}
+    \subitem used when a client wishes to recieve a value at a given key
+    \item \texttt{ACKPUT}
+    \subitem response given by storage node when PUT was successful
+    \item \texttt{ACKGET}
+    \subitem response given by storage node when GET was successful
+    \item \texttt{FAIL}
+    \subitem General fail item
+    \item \texttt{S\_INIT}
+    \subitem Primarily used for storage node initialization. This packet contains group size, members, and the primary node
+\end{enumerate}
+
 \subsection{Storage Node Initialization}
-how storage nodes connect to the manager
+Storage nodes are initialized separately from the manager daemon.
+When a storage node is spawned, it sends a \texttt{DESC} packet to the manager and is added to the pool of available nodes.
+Each storage node is apart of a group as determined by the manager.
+Groups are assigned ina round robin fashion to ensure a balanced load across all nodes.
+In every group there exists one primary node that is the primary communication device for the client.
+Each node within a group is made aware of its neighbors by an \texttt{S\_INIT} packet from the server.
+
+\subsection{\texttt{PUT} operation}
+When a client wants to store a value at a given key into a node, it first asks the manager for the node group responsible for that key.
+The packet sent to the manager has a field for key and a field for value.
+The value field is a stringified version of the original vector in which each value is joined by a pipe deliminator.
+If that key has yet to be tracked, the server uses round robin to find an available group and assigns it to the given key.
+
+The client is then given a group struct with the port number for the primary storage node and a list of it's neighbors for redundancy. 
+This list is never used directly by the client.
+
+A client then sends the same \texttt{PUT} packet to the primary node and is given a \texttt{ACKPUT} response if successful.
+
+In the background, the primary storage node broadcasts that same packet out to all of it's neighbors.
+
+\subsection{\texttt{GET} operation}
+When a client desires a value for a given key, it first asks the manager to find the group responsible for that key.
+If that key does not exist in the manager's housekeeping, a generalized \texttt{FAIL} packet is returned.
+
+If the key does exist, the client is returned a group struct with the port number for the primary storage node and a list of it's neighbors for redundancy. 
+Again, this list is never used directly by the client.
+
+The client then forwards the \texttt{GET} packet to the primary node and is given a \texttt{ACKGET} response if successful.
+
+In this packet, the \texttt{value} field is now non-null. 
+In it is a string delimitated by |. 
+The client library splits this string into substrings based around this deliminator and returns a vector to the original caller.
+
+
+
+\subsection{Data Management}
+\begin{enumerate}
+    \item manager has key group map
+        \subitem how its used on put
+        \subitem how its used on get
+    \item each node has a view of what keys it has
+\end{enumerate}
 \subsection{Data Redundancy}
 how data is duplicated across nodes
 \subsection{Node Failure}
-One node is primary, it has neighbors
+\begin{enumerate}
+    \item no heart beat and why
+    \item One node is primary, it has neighbors
+\end{enumerate}
 
 Two discovery cases
 \begin{enumerate}
@@ -29,5 +107,6 @@ Two discovery cases
     \item Node discovers neighbor died
 \end{enumerate}
 
+In both cases, a packet of type \texttt{NODE\_FAILURE} is sent to the manager.
 \section{Results}
 \end{document}
