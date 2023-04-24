@@ -99,7 +99,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		return false;
 	}
 
-	std::cout << "[CLIENT] recieved response...\n";
+	std::cout << "[CLIENT] recieved response... type=" << ((generic_message*)buffer)->type << "\n";
 	if (((generic_message *) buffer)->type == S_INIT) {
 		std::cout << "[CLIENT] recieved response from PUT ";
 		auto msg = (assignment_message *) buffer;

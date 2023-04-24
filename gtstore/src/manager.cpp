@@ -194,9 +194,7 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 			return;
 		}
 		
-		assignment_message msg{};
-		msg.type = S_INIT;
-		msg.group = *group;
+		assignment_message msg{*group};
 
 		if (send(sockfd, (void*)&msg, sizeof(msg), 0) == -1) {
 			perror("SERVER: send group msg");
@@ -274,11 +272,10 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 			std::cout << "MANAGER: found put group ";
 			print_group(*group);
 			std::cout << "[MANAGER [demux]] returning packet to: " << inet_ntoa(sin->sin_addr) << " port: " << ntohs(sin->sin_port) << "\n";
-			// TODO: return to client
-			assignment_message outgoing_msg{};
-			outgoing_msg.group = *group;
 
-			if (send(client_fd, (void*)&msg, sizeof(msg), 0) == -1) {
+			assignment_message outgoing_msg{*group};
+
+			if (send(client_fd, (void*)&outgoing_msg, sizeof(outgoing_msg), 0) == -1) {
 				perror("MANAGER: (comdemux) send group msg");
 				return;
 			};

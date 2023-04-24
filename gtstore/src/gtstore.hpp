@@ -78,7 +78,7 @@ struct assignment_message {
 	uint8_t type;
 	store_grp_t group;
 
-	assignment_message(): type{S_INIT}, group{} {}
+	assignment_message(store_grp_t group): type{S_INIT}, group{group} {}
 };
 
 //Used to demux message type
