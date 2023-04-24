@@ -26,7 +26,9 @@
 \subsection{Sockets}
 Each node (client, manager, storage) exposes a unique port that can be connected to by multiple processes.
 This is the "listen" port. For the manager class, this port is static and can only be configured before runtime.
-For the other nodes, their listen port is randomly chosen at runtime and it is their responsibility to make the manager aware of their listening port number.
+For the other nodes, their listen port is randomly chosen by the OS at runtime and it is their responsibility to make the manager aware of their listening port number.
+In our case, all nodes are on the same local IP address. However, in the event that nodes are spread out on different machines, the user or daemon starting the storage and client
+nodes would be responsible for knowing which IP address the manager is on, and the code would be edited to take in a command line input to set the ip address.
 
 
 \subsection{Packet Types}
