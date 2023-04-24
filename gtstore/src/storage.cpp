@@ -165,10 +165,6 @@ int GTStoreStorage::listen_for_msgs() {
 		}
 		//TODO: PUT, GET, and DISC (assign to primary and give replicas)
 
-		// Process the message
-		// ...
-
-		// Close the client socket
 		close(client_fd);
 	}
 
