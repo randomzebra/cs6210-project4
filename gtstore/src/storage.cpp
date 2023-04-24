@@ -16,8 +16,6 @@ void GTStoreStorage::init() {
 		std::cerr << "MANAGER: node_init() failed" << std::endl;
 		return;
 	}
-
-	std::cout << "STORAGE: initalized\n";
 }
 
 /*
@@ -53,7 +51,7 @@ int GTStoreStorage::node_init() {
 	}
 	char buffer[BUFFER_SZE] = {0};
 	read(this->connect_fd, buffer, sizeof(buffer));
-	std::cout << "STORAGE: Node init ack received '" << buffer << "'\n";
+	//std::cout << "STORAGE: Node init ack received '" << buffer << "'\n";
 	close(this->connect_fd);
 
 	//rePrep a socket and reset timeout to infinite

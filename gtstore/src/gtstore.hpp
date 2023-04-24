@@ -16,6 +16,7 @@
 #include <thread>
 #include <mutex>
 #include <sys/socket.h>
+#include <memory>
 
 
 #define MAX_KEY_BYTE_PER_REQUEST 20
@@ -42,7 +43,7 @@ enum MSG_TYPE {
 	ACKPUT,
 	ACKGET,
 	FAIL,
-	S_INIT	// Storage init (who is primary, who are neighbors)
+	S_INIT	// Storage init (who is primary, who are neighbors) // TODO: rename STORAGE_GRP
 };
 
 /*
@@ -76,6 +77,8 @@ struct discovery_message {
 struct assignment_message {
 	uint8_t type;
 	store_grp_t group;
+
+	assignment_message(): type{S_INIT}, group{} {}
 };
 
 //Used to demux message type
@@ -98,7 +101,7 @@ class GTStoreClient {
 				int client_id;
 				val_t value;
 				int listen_fd, connect_fd;
-				//int mngr_socket_fd;
+				int mngr_socket_fd;
 				struct sockaddr_in mang_connect_addr;
 	
 
@@ -114,29 +117,26 @@ class GTStoreClient {
 class GTStoreManager {
 		private:
 				vector<uint32_t> uninitialized; //Ports's of uninitialized nodes
-				queue<store_grp_t *> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
-				std::map<std::string, store_grp_t *> existing_puts;
+				queue<std::shared_ptr<store_grp_t>> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
+				std::map<std::string, std::shared_ptr<store_grp_t>> key_group_map;
 				int total_nodes;
 				int k;
 				bool live;
 				int listen_fd, connect_fd;
 				struct sockaddr_in listen_addr; //Server listening socket
 				std::mutex rr_mutex;
-				void push_group_assignments(vector<store_grp_t> grp_assignments);
+				void push_group_assignments(vector<std::shared_ptr<store_grp_t>> grp_assignments);
 				int commit_push(string key, store_grp_t * strgrp);
 				int restart_connection(int mode);
 		public:
 				void init(int nodes, int k);
-				store_grp_t put(std::string key, val_t val); //Should implement uninitialized/RR logic
+				std::shared_ptr<store_grp_t> put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				int put_network(std::string key, val_t val); //Should implement uninitialized/RR logic
-				void comDemux();
+				void comDemux(char* buffer, sockaddr_in* sin, int client_fd);
 				int socket_init();
 				int node_init();
 				int listen_for_msgs();
-
-
-				//gets are not handled here.
-				//int hearbeat() // should return a dead pid. Should run in a seperate thread? 
+				int handle_put(comm_message* msg);
 };
 
 class GTStoreStorage {

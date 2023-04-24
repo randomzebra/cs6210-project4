@@ -1,25 +1,20 @@
 #include "gtstore.hpp"
 #include <string.h>
-#include <sys/socket.h>
 
 void GTStoreManager::init(int nodes, int k) {
 	this->total_nodes = nodes;
 	this->k = k;
 	live = true; //This should be false when GTStoreManager should die gracefully
-	
 
 	if (socket_init() < 0) {
 		std::cerr << "MANAGER: socket_init() failed" << std::endl;
 		return;
 	}
 	
-	//Node Discovery
 	if (node_init() < 0) {
 		std::cerr << "MANAGER: node_init() failed" << std::endl;
 		return;
 	}
-	//TODO: socket code here
-	
 }
 
 /*
@@ -108,21 +103,22 @@ int GTStoreManager::node_init() {
 
 
 
-	vector<store_grp_t> groups;
+	vector<std::shared_ptr<store_grp_t>> groups;
 	while(uninitialized.size() > 0) {
-		store_grp_t group{};
-		group.primary = uninitialized.back();
+		auto group = std::make_shared<store_grp_t>();
+		group->primary = uninitialized.back();
 		uninitialized.pop_back();
 		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
-			group.num_neighbors++;
-			group.neighbors[i] = uninitialized.back();
+			group->num_neighbors++;
+			group->neighbors[i] = uninitialized.back();
 			uninitialized.pop_back();
 		}
 		groups.push_back(group);
 	}
 
-	for (auto& group : groups) {
-		print_group(group);
+	for (auto group : groups) {
+		rr.push(group);
+		print_group(*group);
 	}
 	
 	push_group_assignments(groups);
@@ -155,7 +151,7 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 }
 
 // tell a storage node that it's a primary and here are its children
-void GTStoreManager::push_group_assignments(vector<store_grp_t> groups) {
+void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>> groups) {
 	// called in node_init
 	// needs to be called when it recieves a failure of a primary node, reassign primary node from source group
 	//
@@ -189,7 +185,7 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> groups) {
 		// Set up the server address and port number
 		memset(&servaddr, 0, sizeof(servaddr));
 		servaddr.sin_family = AF_INET;
-		servaddr.sin_port = htons(group.primary);
+		servaddr.sin_port = htons(group->primary);
 		servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 		// Connect to the server
@@ -200,7 +196,7 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> groups) {
 		
 		assignment_message msg{};
 		msg.type = S_INIT;
-		msg.group = group;
+		msg.group = *group;
 
 		if (send(sockfd, (void*)&msg, sizeof(msg), 0) == -1) {
 			perror("SERVER: send group msg");
@@ -217,74 +213,112 @@ void GTStoreManager::push_group_assignments(vector<store_grp_t> groups) {
 * Receiving and processing commands. This is the main thread.
 */
 int GTStoreManager::listen_for_msgs() {
-	int incoming;
+	char* buffer = (char*)malloc(BUFFER_SZE * sizeof(char));
+	if (!buffer) {
+		perror("listen_for_msgs, buffer malloc");
+		return -1;
+	}
 
-	
-	int addrlen = sizeof(listen_addr);
-	int counter = 0;
-	
-	
+	// Get the socket address and port number
+	struct sockaddr_in sin;
+	socklen_t sinlen = sizeof(sin);
+	if (getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen) == -1) {
+		perror("getsockname");
+		return -1; 
+	}
+	std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
 
-	while (true) {
-		if ((incoming = accept(this->listen_fd, (struct sockaddr*) &listen_addr, (socklen_t *)&addrlen)) < 0) {
-			perror("MANAGER: Node Init Accept failed");
-        	return -1;
+	// Listen for incoming connections
+	if (listen(this->listen_fd, SOMAXCONN) == -1) {
+		perror("listen");
+		return -1;
+	}
+
+	while(true) {
+		// Accept incoming connections
+		int client_fd = accept(this->listen_fd, (struct sockaddr *)&sin, &sinlen);
+		std::cout << "[MANAGER [accept]] socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
+		if (client_fd < 0) {
+			perror("MANAGER: accept");
+			continue;
 		}
-		std::cout << "[listen_for_msgs] recived message!\n";
-		//thread comms_routine (GTStoreManager::comDemux);
-		comDemux();
 
+		// Read data from the client
+		if (read(client_fd, buffer, BUFFER_SZE) < 0) {
+			perror("MANAGER: read");
+			close(client_fd);
+			continue;
+		}
+
+		std::cout << "MANAGER: received message: " << buffer << "\n";
+
+		comDemux(buffer, &sin, client_fd);
+		close(client_fd);
 	}
 }
 
-void GTStoreManager::comDemux() {
-	char buffer[BUFFER_SZE] = {0};
-	if (read(this->listen_fd, buffer, sizeof(buffer)) < 0) {
-		perror("MANAGER: thread demux read failed");
-		return;
-	}
+void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 	std::cout << "[comDemux]: read message: '" << buffer << "'\n";
+	auto type = ((generic_message *)buffer)->type;
 
-	if (((generic_message *) buffer)->type == PUT) {
-		comm_message *msg = (comm_message *) buffer;
-		
+	switch (type) {
+	case PUT:
+		{
+			auto msg = (comm_message*)buffer;
+			std::cout << "[MANAGER] PUT (key=" << msg->key << ",value=" << msg->value << ")\n";
+			auto group = put(msg->key, msg->value);
+			if (group == nullptr) {
+				std::cout << "MANAGER: no group found for put!";
+				return;
+			}
+			std::cout << "MANAGER: found put group ";
+			print_group(*group);
+			std::cout << "[MANAGER [demux]] returning packet to: " << inet_ntoa(sin->sin_addr) << " port: " << ntohs(sin->sin_port) << "\n";
+			// TODO: return to client
+			assignment_message outgoing_msg{};
+			outgoing_msg.group = *group;
 
-	} else if (((generic_message *) buffer)->type == GET) {
-		comm_message *msg = (comm_message *) buffer;
-
-
-	} else if (((generic_message *) buffer)->type == ACKPUT) {
-		port_message *msg = (port_message *) buffer; // This will use the key field. Most of the time, we do not need it
-	} else if (((generic_message *) buffer)->type == FAIL) {
-		port_message *msg = (port_message *) buffer;
-	} else {
-		return; //Unrecognized message type
+			if (send(client_fd, (void*)&msg, sizeof(msg), 0) == -1) {
+				perror("MANAGER: (comdemux) send group msg");
+				return;
+			};
+		}
+		break;
+	case GET:
+		std::cout << "[MANAGER] recieved put, TODO\n";
+		//comm_message *msg = (comm_message *) buffer;
+		break;
+	case ACKPUT:
+		std::cout << "[MANAGER] recieved ackput, TODO\n";
+		break;
+	case FAIL:
+		std::cout << "[MANAGER] recieved fail, TODO\n";
+		break;
+	default:
+		std::cout << "[MANAGER] unknown msg type!\n";
 	}
-
 }
 
-
-
-
-store_grp_t GTStoreManager::put(std::string key, val_t val) {
+std::shared_ptr<store_grp_t> GTStoreManager::put(std::string key, val_t val) {
+	auto search = key_group_map.find(key);
 	
-
-	store_grp_t *existing_grp;
-	auto record = existing_puts.find(key);
-	
-	if (record == existing_puts.end()) { //No existing put found, allocate existing grp w/ RR
+	if (search == key_group_map.end()) { //No existing put found, allocate existing grp w/ RR
 		if (rr.size() == 0) {
-			return {}; //Failure, if there are no allocated nodes and no rr groups, we have zero nodes
+			std::cout << "MANAGER: no groups available in RR!";
+			return nullptr; //Failure, if there are no allocated nodes and no rr groups, we have zero nodes
 		}
 
-		existing_grp = rr.front(); //RR
+		auto group = rr.front();
 		rr.pop();
-		rr.push(existing_grp);
+		rr.push(group);
 
-		//existing_puts.insert(std::pair<std::string, store_grp_t *>(key, existing_grp)); //Performed after receivng an ack for the 
-		return *existing_grp;
+		key_group_map.insert({key, group});
+
+		std::cerr << "MANAGER: group to return ";
+		print_group(*group);
+		return group;
 	} else {
-		return *record->second; //else return the found grp.
+		return search->second; //else return the found grp.
 	}
 }
 

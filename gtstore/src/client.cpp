@@ -1,9 +1,8 @@
 #include "gtstore.hpp"
 
 void GTStoreClient::init(int id) {
-
-		cout << "Inside GTStoreClient::init() for client " << id << "\n";
 		client_id = id;
+		socket_init();
 }
 
 
@@ -23,6 +22,13 @@ int GTStoreClient::socket_init() {
 		perror("STORAGE: connect socket");
 		return -1;
 	}
+	
+	/*
+	if ((this->mngr_socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("STORAGE: connect manager socket");
+		return -1;
+	}
+	*/
 
 	if (setsockopt(this->listen_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
         perror("STORAGE: Option Selection Failed");
@@ -91,6 +97,13 @@ bool GTStoreClient::put(string key, vector<string> value) {
 	if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 		perror("CLIENT: put read mngr failed");
 		return false;
+	}
+
+	std::cout << "[CLIENT] recieved response...\n";
+	if (((generic_message *) buffer)->type == S_INIT) {
+		std::cout << "[CLIENT] recieved response from PUT ";
+		auto msg = (assignment_message *) buffer;
+		print_group(msg->group);
 	}
 	
 	if (((generic_message *) buffer)->type == ACKPUT) { //Received an ACK w/ a storage port from mngr
