@@ -84,7 +84,7 @@ int GTStoreManager::node_init() {
 		if (msg->type != DISC) {
 			continue; //Drop any command messages at this stage
 		} else {
-			this->uninitialized.push_back(msg->discovery_port);
+			this->uninitialized.push_back(msg->node);
 		}
 
 		if (send(incoming, "Discover ack", strlen("Discover ack"), 0) < 0) {
@@ -97,7 +97,8 @@ int GTStoreManager::node_init() {
 
 	std::cout << "discovered nodes: {";
 	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
-		 std::cout << " " << *it;
+		 std::cout << " ";
+		 print_node(*it);
 	}
 	std::cout << "}\n";
 
@@ -184,8 +185,10 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 		// Set up the server address and port number
 		memset(&servaddr, 0, sizeof(servaddr));
 		servaddr.sin_family = AF_INET;
-		servaddr.sin_port = htons(group->primary);
-		servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		//servaddr.sin_port = htons(group->primary.addr.sin_port);
+		servaddr.sin_port = group->primary.addr.sin_port;
+		servaddr.sin_addr.s_addr = group->primary.addr.sin_addr.s_addr;
+		//servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //TODO!
 
 		// Connect to the server
 		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
@@ -348,11 +351,13 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 	return -1;
 }
 
-int GTStoreManager::handle_node_failure(uint32_t node) {
+int GTStoreManager::handle_node_failure(node_t node) {
 	auto search = node_keys_map.find(node);
 	
 	if (search == node_keys_map.end()) {
-		std::cerr << "[MANAGER] node_failure: node (" << node << ") DNE in node_keys_map\n";
+		std::cerr << "[MANAGER] node_failure: node (";
+		print_node(node);
+		std::cerr << ") DNE in node_keys_map\n";
 		return 0;
 	}
 
@@ -368,23 +373,23 @@ int GTStoreManager::handle_node_failure(uint32_t node) {
 		auto group = grp_search->second;
 		if (group->num_neighbors == 0) {
 			std::cerr << "[MANAGER] node_failure: num neighbors = 0, no alternatives!\n";
-			group->primary = -1;
+			group->primary.alive = false;
 			return -1;
 		}
 
 		std::cerr << "[MANAGER] node_failure: prev group";
 		print_group(*group);
 
-		if (group->primary == node) {
+		if (group->primary.addr.sin_port == node.addr.sin_port) { // TODO: better equity
 			// assign first neighbor as primary
 			auto replacement = group->neighbors[0];
 			group->primary = replacement;
-			group->neighbors[0] = -1; // TODO: better way to do this
+			group->neighbors[0].alive = false;
 			group->num_neighbors--;
 		} else {
 			for (auto i=0; i < group->num_neighbors; ++i) {
-				if (group->neighbors[i] == node) {
-					group->neighbors[i] = -1;
+				if (group->neighbors[i].addr.sin_port == node.addr.sin_port) {
+					group->neighbors[i].alive = false;
 				}
 			}
 

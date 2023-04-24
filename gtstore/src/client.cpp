@@ -82,7 +82,9 @@ vector<string> GTStoreClient::get(string key) {
 
 		if (((generic_message *) buffer)->type == S_INIT) {
 			auto res_msg = (assignment_message *) buffer;
-			std::cout << "[CLIENT] recieved response from GET, primary port=" << res_msg->group.primary << "\n";
+			std::cout << "[CLIENT] recieved response from GET, primary port=";
+			print_node(res_msg->group.primary);
+			std::cout << "\n";
 
 			if(restart_connection(1) < 0) { //Restart w/ timeout
 				std::cerr << "Failed to restart connection after get mangr ACK" << std::endl;
@@ -90,9 +92,10 @@ vector<string> GTStoreClient::get(string key) {
 			}
 
 			//Construct storage address w/ port
-			struct sockaddr_in in_addr;
+			struct sockaddr_in in_addr = res_msg->group.primary.addr;
+			/*
 			in_addr.sin_family = AF_INET;
-			in_addr.sin_port = htons(res_msg->group.primary);
+			in_addr.sin_port = htons(res_msg->group.primary.addr.sin_port);
 
 			// TODO: IP Address
 			if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
@@ -101,6 +104,7 @@ vector<string> GTStoreClient::get(string key) {
 					"\nInvalid address/ Address not supported \n");
 				return {};
 			}
+			*/
 
 		
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
@@ -214,7 +218,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 
 	if (((generic_message *) buffer)->type == S_INIT) {
 		auto res_msg = (assignment_message *) buffer;
-		std::cout << "[CLIENT] recieved response from PUT, primary port=" << res_msg->group.primary << "\n";
+		//std::cout << "[CLIENT] recieved response from PUT, primary port=" << res_msg->group.primary << "\n";
 
 		if(restart_connection(1) < 0) { //Restart w/ timeout
 			std::cerr << "Failed to restart connection after put mangr ACK" << std::endl;
@@ -222,19 +226,24 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		}
 
 		//Construct storage address w/ port
-		struct sockaddr_in in_addr;
-		in_addr.sin_family = AF_INET;
-		in_addr.sin_port = htons(res_msg->group.primary);
+		std::cout << "CLIENT: connecting to ";
+		print_node(res_msg->group.primary);
+		std::cout << "\n";
+		struct sockaddr_in in_addr = res_msg->group.primary.addr;
+		//in_addr.sin_family = AF_INET;
+		//in_addr.sin_port = htons(res_msg->group.primary.addr.sin_port); // TODO; just use the whole struct
+		//in_addr.sin_port = res_msg->group.primary.addr.sin_port; // TODO; just use the whole struct
 
 		// TODO: IP Address
+		/*
 		if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
 			<= 0) {
 			printf(
 				"\nInvalid address/ Address not supported \n");
 			return -1;
 		}
+		*/
 
-		
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
 			if (errno == ETIMEDOUT) { //Primary timed out, dead
 				std::cerr << "Primary dead" << std::endl;

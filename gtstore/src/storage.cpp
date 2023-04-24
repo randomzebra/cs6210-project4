@@ -41,9 +41,13 @@ int GTStoreStorage::node_init() {
 		return -1;
 	}
 	
+	node_t self;
+	self.addr = this->addr;
+	self.alive = true;
+
 	discovery_message msg;
 	msg.type = DISC;
-	msg.discovery_port = this->listen_port;
+	msg.node = self;
 
 	if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
 		perror("STORAGE: Node_init send failed");
@@ -113,7 +117,7 @@ int GTStoreStorage::listen_for_msgs() {
 
 		if (com_demux(buffer, client_fd) != 0) {
 			//close(client_fd);
-			std::cerr << "STORAGE[" << listen_port << "]: demux failed for " << sin.sin_port << "\n";
+			std::cerr << "STORAGE[" << addr.sin_port << "]: demux failed for " << sin.sin_port << "\n";
 			//return -1;
 		} else {
 			//generic_message msg;
@@ -134,7 +138,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 	generic_message *msg = (generic_message *) buffer;
 	switch(msg->type) {
 		case S_INIT: {
-			std::cout << "STORAGE[" << listen_port << "]: init message recieved\n";
+			std::cout << "STORAGE[" << addr.sin_port << "]: init message recieved\n";
 			assignment_message *msg = (assignment_message *) buffer;
 			group = msg->group;
 			return 0;
@@ -157,7 +161,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			return 0;
 		}
 		case GET: {
-			std::cout << "STORAGE[" << listen_port << "]: get: key=(" << buffer << ")\n";
+			std::cout << "STORAGE[" << addr.sin_port << "]: get: key=(" << buffer << ")\n";
 
 			auto msg = (comm_message*)buffer;
 			comm_message resp;
@@ -171,10 +175,10 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			} 
 		}
 		case ACK:
-			std::cout << "STORAGE[" << listen_port << "]: ACK, ignoring\n";
+			std::cout << "STORAGE[" <<addr.sin_port << "]: ACK, ignoring\n";
 			return 0;
 		default:
-			std::cout << "STORAGE[" << listen_port << "]: unhandled message recieved type=(" << msg->type << ")\n";
+			std::cout << "STORAGE[" <<addr.sin_port << "]: unhandled message recieved type=(" << msg->type << ")\n";
 			return -1;
 	}
 	return 0;
@@ -182,28 +186,32 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 
 // send PUT to every neighbor
 int GTStoreStorage::handle_put_msg(comm_message* msg) {
-	if (listen_port != group.primary) { // only the primary broadcasts
+	// TODO: better equity
+	if (addr.sin_port != group.primary.addr.sin_port) { // only the primary broadcasts
 		return 0;
 	}
 
 
-	std::cout << "STORAGE[" << listen_port << "]: broadcasting key to group\n";
+	std::cout << "STORAGE[" << addr.sin_port << "]: broadcasting key to group\n";
 	char buffer[BUFFER_SZE];
 	for (int i=0; i < group.num_neighbors; ++i) {
 		auto node = group.neighbors[i];
 
-		if (node == -1) { // node has been killed
-			std::cout << "STORAGE[" << listen_port << "]: found dead node, skipping\n";
+		if (node.alive == false) { 
+			std::cout << "STORAGE[" << addr.sin_port << "]: found dead node, skipping\n";
 			continue;
 		}
-		struct sockaddr_in addr;
+		struct sockaddr_in addr = node.addr;
+		/*
 		addr.sin_family = AF_INET;
-		addr.sin_port = htons(node);
+		addr.sin_port = htons(node.addr.sin_port);
 
+		// TODO: set IP correctly
 		if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) <= 0) {
 			printf("Invalid address/ Address not supported \n");
 			return -1;
 		}
+		*/
 		int fd;
 		if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 			perror("STORAGE: neighbor socket");
@@ -212,7 +220,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 
 		if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 			if (errno == ETIMEDOUT) {
-				std::cerr << "STORAGE[" << listen_port << "]: neighbor died" << std::endl;
+				std::cerr << "STORAGE[" << addr.sin_port << "]: neighbor died" << std::endl;
 
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 					perror("STORAGE: put finalize ack connection");
@@ -233,7 +241,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 				}
 
 				if (((generic_message *) buffer)->type != ACK) {
-					std::cerr << "STORAGE[" << listen_port << "]: manager didnt respond w ack after death notification\n";
+					std::cerr << "STORAGE[" << addr.sin_port << "]: manager didnt respond w ack after death notification\n";
 				}
 			}
 
@@ -252,7 +260,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 			return false;
 		}
 		if (((generic_message *) buffer)->type != ACKPUT) {
-			std::cerr << "STORAGE[" << listen_port << "]: neighbor didnt respond w ack after death notification\n";
+			std::cerr << "STORAGE[" << addr.sin_port << "]: neighbor didnt respond w ack after death notification\n";
 		}
 		close(fd);
 	}
@@ -330,8 +338,10 @@ int GTStoreStorage::socket_init() {
     if (getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen) == -1) {
         perror("getsockname");
 		return -1; 
-	} else
-        this->listen_port = ntohs(sin.sin_port);
+	}
+	//this->listen_port = ntohs(sin.sin_port);
+	this->addr = sin;
+
 	return 0;
 }
 
@@ -343,7 +353,7 @@ int GTStoreStorage::put(std::string key, val_t value) {
 	store[key] = value;
 	load++;
 
-	std::cout << "STORAGE[" << listen_port << "] store= {";
+	std::cout << "STORAGE[" << addr.sin_port << "] store= {";
 	for (auto& kv : store) {
 		std::cout << kv.first << " : " << kv.second << ",";
 	}
