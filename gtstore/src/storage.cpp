@@ -88,7 +88,7 @@ int GTStoreStorage::listen_for_msgs() {
 		perror("getsockname");
 		return -1; 
 	}
-	std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
+	//std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
 
 	// Listen for incoming connections
 	if (listen(this->listen_fd, SOMAXCONN) == -1) {
@@ -112,7 +112,7 @@ int GTStoreStorage::listen_for_msgs() {
 		}
 
 		if (com_demux(buffer, client_fd) != 0) {
-			close(client_fd);
+			//close(client_fd);
 			std::cerr << "STORAGE[" << listen_port << "]: demux failed for " << sin.sin_port << "\n";
 			//return -1;
 		} else {
@@ -172,8 +172,9 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 		}
 		case ACK:
 			std::cout << "STORAGE[" << listen_port << "]: ACK, ignoring\n";
+			return 0;
 		default:
-			std::cout << "STORAGE[" << listen_port << "]: unhandled message recieved"<< msg->type <<"\n";
+			std::cout << "STORAGE[" << listen_port << "]: unhandled message recieved type=(" << msg->type << ")\n";
 			return -1;
 	}
 	return 0;
