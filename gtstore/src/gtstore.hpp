@@ -130,6 +130,7 @@ class GTStoreManager {
 				vector<uint32_t> uninitialized; //Ports's of uninitialized nodes
 				queue<std::shared_ptr<store_grp_t>> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
 				std::map<std::string, std::shared_ptr<store_grp_t>> key_group_map;
+				std::map<uint32_t, std::vector<std::string>> node_keys_map;
 				int total_nodes;
 				int k;
 				bool live;
@@ -144,6 +145,7 @@ class GTStoreManager {
 				std::shared_ptr<store_grp_t> put(std::string key, val_t val); //Should implement uninitialized/RR logic
 				int put_network(std::string key, val_t val); //Should implement uninitialized/RR logic
 				void comDemux(char* buffer, sockaddr_in* sin, int client_fd);
+				int handle_node_failure(uint32_t node);
 				int socket_init();
 				int node_init();
 				int listen_for_msgs();

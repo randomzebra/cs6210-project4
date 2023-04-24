@@ -305,9 +305,17 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 	case ACKPUT:
 		std::cout << "[MANAGER] recieved ackput, TODO\n";
 		break;
-	case NODE_FAILURE:
-		std::cout << "[MANAGER] a node has failed! TODO\n";
+	case NODE_FAILURE: {
+		std::cout << "[MANAGER] a node has failed!\n";
+		auto msg = (node_failure_message*)buffer;
+		if (handle_node_failure(msg->node) != 0) {
+			std::cerr << "[MANAGER] unable to handle node failure\n";
+			// send NACK
+		} else {
+			// send ACK
+		}
 		break;
+	}
 	default:
 		std::cout << "[MANAGER] unknown msg type! type=" << type << "\n";
 	}
@@ -340,8 +348,53 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 	return -1;
 }
 
+int GTStoreManager::handle_node_failure(uint32_t node) {
+	auto search = node_keys_map.find(node);
+	
+	if (search == node_keys_map.end()) {
+		std::cerr << "[MANAGER] node_failure: node (" << node << ") DNE in node_keys_map\n";
+		return 0;
+	}
 
+	// loop through every key and remove node from group
+	for (const auto& key : search->second) {
+		auto grp_search = key_group_map.find(key);
+		
+		if (grp_search == key_group_map.end()) {
+			std::cerr << "[MANAGER] node_failure: key (" << key << ") DNE in key_group_map\n";
+			continue;
+		}
 
+		auto group = grp_search->second;
+		if (group->num_neighbors == 0) {
+			std::cerr << "[MANAGER] node_failure: num neighbors = 0, no alternatives!\n";
+			group->primary = -1;
+			return -1;
+		}
+
+		std::cerr << "[MANAGER] node_failure: prev group";
+		print_group(*group);
+
+		if (group->primary == node) {
+			// assign first neighbor as primary
+			auto replacement = group->neighbors[0];
+			group->primary = replacement;
+			group->neighbors[0] = -1; // TODO: better way to do this
+			group->num_neighbors--;
+		} else {
+			for (auto i=0; i < group->num_neighbors; ++i) {
+				if (group->neighbors[i] == node) {
+					group->neighbors[i] = -1;
+				}
+			}
+
+		}
+		std::cerr << "[MANAGER] node_failure: new group";
+		print_group(*group);
+	}
+
+	return 0;
+}
 
 int main(int argc, char **argv) {
 	int n, k;

@@ -191,6 +191,11 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 	char buffer[BUFFER_SZE];
 	for (int i=0; i < group.num_neighbors; ++i) {
 		auto node = group.neighbors[i];
+
+		if (node == -1) { // node has been killed
+			std::cout << "STORAGE[" << listen_port << "]: found dead node, skipping\n";
+			continue;
+		}
 		struct sockaddr_in addr;
 		addr.sin_family = AF_INET;
 		addr.sin_port = htons(node);
