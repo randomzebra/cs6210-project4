@@ -1,0 +1,33 @@
+\documentclass{article}
+\usepackage{enumitem}
+\usepackage[a4paper, total={6in, 8in}, margin=1in]{geometry}
+\usepackage{graphicx}
+\newcommand*{\ttt}[1]{\texttt{#1}}
+\graphicspath{{./res/}}
+
+\begin{document}
+\section{Design Overview}
+\subsection{Files}
+\begin{enumerate}
+    \item \texttt{storage.cpp}
+    \item \texttt{client.cpp}
+    \item \texttt{manager.cpp}
+\end{enumerate}
+
+\subsection{Sockets}
+What sockets are created/How they are used
+\subsection{Storage Node Initialization}
+how storage nodes connect to the manager
+\subsection{Data Redundancy}
+how data is duplicated across nodes
+\subsection{Node Failure}
+One node is primary, it has neighbors
+
+Two discovery cases
+\begin{enumerate}
+    \item Client discovers node died
+    \item Node discovers neighbor died
+\end{enumerate}
+
+\section{Results}
+\end{document}
