@@ -155,8 +155,10 @@ class GTStoreStorage {
 				int listen_fd, connect_fd;
 				uint32_t listen_port;
 				struct sockaddr_in mang_connect_addr;
-				store_grp_t replicas; //All replicas, excluding itself.
-				int handle_assignment_msg(char* buffer);
+				store_grp_t group; //All replicas, excluding itself.
+				int handle_assignment_msg(assignment_message* msg);
+				int handle_put_msg(comm_message* msg);
+				int com_demux(char* buffer, int client_fd);
 		public:
 				void init();
 

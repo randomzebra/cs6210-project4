@@ -100,9 +100,8 @@ bool GTStoreClient::put(string key, vector<string> value) {
 	}
 
 	if (((generic_message *) buffer)->type == S_INIT) {
-		auto msg = (assignment_message *) buffer;
-		std::cout << "[CLIENT] recieved response from PUT, primary port=" << msg->group.primary << "\n";
-		print_group(msg->group);
+		auto res_msg = (assignment_message *) buffer;
+		std::cout << "[CLIENT] recieved response from PUT, primary port=" << res_msg->group.primary << "\n";
 
 		if(restart_connection(1) < 0) { //Restart w/ timeout
 			std::cerr << "Failed to restart connection after put mangr ACK" << std::endl;
@@ -112,7 +111,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		//Construct storage address w/ port
 		struct sockaddr_in in_addr;
 		in_addr.sin_family = AF_INET;
-		in_addr.sin_port = htons(msg->group.primary);
+		in_addr.sin_port = htons(res_msg->group.primary);
 
 		// TODO: IP Address
 		if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
@@ -135,7 +134,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 
 				node_failure_message response_message;
 				response_message.type = NODE_FAILURE;
-				response_message.node = msg->group.primary;
+				response_message.node = res_msg->group.primary;
 				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
 					perror("CLIENT: put send failure message failed");
 					return false;
@@ -160,7 +159,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
-		if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
+		if (send(this->connect_fd, (void*)&msg, sizeof(msg), 0) < 0) { // doesn't like me using &msg instead of buffer
 			perror("CLIENT: put send storage failed");
 			return false;
 		} 
@@ -181,6 +180,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			// TODO: make new message: type port message
 			//
 			// manager needs to add key for that storage group
+			/*
 			msg->type = ACKPUT;
 			if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 				perror("CLIENT: put finalize ack connection");
@@ -201,6 +201,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 				restart_connection(0);
 				return true;
 			}
+			*/
 		}
 		
 	} else {
