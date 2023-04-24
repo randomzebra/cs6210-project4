@@ -105,6 +105,74 @@ int GTStoreStorage::listen_for_msgs() {
 	// 	- populate replicas
 	// 	- connect to replicas
 	//Listen for assignment message:
+
+	char* buffer = (char*)malloc(BUFFER_SZE * sizeof(char));
+	if (!buffer) {
+		perror("listen_for_msgs, buffer malloc");
+		return -1;
+	}
+
+	// Get the socket address and port number
+	struct sockaddr_in sin;
+	socklen_t sinlen = sizeof(sin);
+	if (getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen) == -1) {
+		perror("getsockname");
+		return -1; 
+	}
+	std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
+
+	// Listen for incoming connections
+	if (listen(this->listen_fd, SOMAXCONN) == -1) {
+		perror("listen");
+		return -1;
+	}
+
+	while(true) {
+		// Accept incoming connections
+		int client_fd = accept(this->listen_fd, (struct sockaddr *)&sin, &sinlen);
+		if (client_fd < 0) {
+			perror("accept");
+			continue;
+		}
+
+		// Read data from the client
+		if (read(client_fd, buffer, BUFFER_SZE) < 0) {
+			perror("read");
+			close(client_fd);
+			continue;
+		}
+
+		std::cout << "received message: " << buffer << "\n";
+
+		generic_message *msg = (generic_message *) buffer;
+		switch(msg->type) {
+			case S_INIT:
+				std::cout << "STORAGE: init message recieved\n";
+				if (handle_assignment_msg(buffer) == -1) {
+					std::cout << "STORAGE: handle init msg failed\n";
+					return -1;
+				}
+				continue;
+			case PUT:
+				std::cout << "STORAGE: put message recieved: TODO (" << buffer << ")\n";
+				continue;
+			case GET:
+				std::cout << "STORAGE: get message recieved: TODO (" << buffer << ")\n";
+				continue;
+			default:
+				std::cout << "STORAGE: unhandled message recieved\n";
+				return -1;
+		}
+		//TODO: PUT, GET, and DISC (assign to primary and give replicas)
+
+		// Process the message
+		// ...
+
+		// Close the client socket
+		close(client_fd);
+	}
+
+	/*
 	char* buffer = (char*)malloc(BUFFER_SZE * sizeof(char));
 	if (!buffer) {
 		perror("listen_for_msgs, buffer malloc");
@@ -112,6 +180,9 @@ int GTStoreStorage::listen_for_msgs() {
 	}
 
 	struct sockaddr_in sin;
+	sin.sin_family = AF_INET;
+	sin.sin_port = this->listen_port;
+
     socklen_t sinlen = sizeof(sin);
 	int sock_num;
     sock_num = getsockname(this->listen_fd, (struct sockaddr *)&sin, &sinlen);
@@ -153,6 +224,7 @@ int GTStoreStorage::listen_for_msgs() {
 		}
 		//TODO: PUT, GET, and DISC (assign to primary and give replicas)
 	}
+	*/
 	
 }
 
