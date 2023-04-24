@@ -59,6 +59,119 @@ vector<string> GTStoreClient::get(string key) {
 		cout << "Inside GTStoreClient::get() for client: " << client_id << " key: " << key << "\n";
 		vector<string> value;
 		// Get the value!
+		if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {
+			perror("CLIENT: put connect failed");
+			return {};
+		}
+
+		comm_message msg;
+		msg.type = GET;
+		strcpy(msg.key, key.c_str());
+
+		//Send message to manager
+		if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
+			perror("CLIENT: get send mngr failed");
+			return {};
+		} 
+
+		char buffer[BUFFER_SZE];
+		if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
+			perror("CLIENT: get read mngr failed");
+			return {};
+		}
+
+		if (((generic_message *) buffer)->type == S_INIT) {
+			auto res_msg = (assignment_message *) buffer;
+			std::cout << "[CLIENT] recieved response from GET, primary port=" << res_msg->group.primary << "\n";
+
+			if(restart_connection(1) < 0) { //Restart w/ timeout
+				std::cerr << "Failed to restart connection after get mangr ACK" << std::endl;
+				return {};
+			}
+
+			//Construct storage address w/ port
+			struct sockaddr_in in_addr;
+			in_addr.sin_family = AF_INET;
+			in_addr.sin_port = htons(res_msg->group.primary);
+
+			// TODO: IP Address
+			if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr)
+				<= 0) {
+				printf(
+					"\nInvalid address/ Address not supported \n");
+				return {};
+			}
+
+		
+		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
+			if (errno == ETIMEDOUT) { //Primary timed out, dead
+				std::cerr << "Primary dead" << std::endl;
+				// connect back to manager
+				restart_connection(0);
+				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
+					perror("CLIENT: GET finalize ack connection");
+					return {};
+				}
+
+				node_failure_message response_message;
+				response_message.type = NODE_FAILURE;
+				response_message.node = res_msg->group.primary;
+				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
+					perror("CLIENT: get send failure message failed");
+					return {};
+				} 
+
+				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
+					perror("CLIENT: put read storage failed");
+					return {};
+				}
+
+				// TODO: maybe not... retry the same process again?
+				// the manager responds with an ACK after we tell it a node has died
+				if (((generic_message *) buffer)->type == ACKGET) {//Manager has purged the failing port from records
+					restart_connection(0);
+					return {};
+				}
+			}
+
+			perror("CLIENT: get storage connect failed");
+			// TODO: recall put (key, value)
+			return {};
+		}
+
+		// if connection succeeds, send put(key, value) to storage node
+		if (send(this->connect_fd, (void*)&msg, sizeof(msg), 0) < 0) { // doesn't like me using &msg instead of buffer
+			perror("CLIENT: get send storage failed");
+			return {};
+		} 
+
+		if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
+			perror("CLIENT: get read storage failed");
+			return {};
+		}
+
+		// ACKPUT means the primary storage node has recieved our key value
+		if (((generic_message *) buffer)->type == ACKGET) { // Put succeeded on primary, Send ACKPUT to mngr to update Map.
+			// doing this to close the storage node file descriptor because we want to connect to the manager 
+			if(restart_connection(0) < 0) {
+				std::cerr << "Failed to restart connection after put storage ack" << std::endl;
+				return {};
+			}
+
+			auto values = ((comm_message*)buffer)->value;
+			std::cerr << "CLIENT: values: " << values << "\n";
+
+			// TODO: deliminate
+		} else {
+			std::cerr << "CLIENT GET: empty" << std::endl;
+		}
+		
+	} else {
+		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
+	}
+
+	return {};
+
 		return value;
 }
 

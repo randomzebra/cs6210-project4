@@ -280,7 +280,28 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		}
 		break;
 	case GET:
-		std::cout << "[MANAGER] recieved put, TODO\n";
+		std::cout << "[MANAGER] recieved get\n";
+		{
+			auto msg = (comm_message*)buffer;
+			std::cout << "[MANAGER] GET (key=" << msg->key << "\n";
+			auto search = key_group_map.find(msg->key);
+	
+			assignment_message outgoing_msg{};
+			if (search == key_group_map.end()) { 
+				std::cout << "MANAGER: no group found for get!";
+				outgoing_msg.type = FAIL;
+				return;
+			} else {
+				outgoing_msg.type = S_INIT;
+				outgoing_msg.group = *search->second;
+			}
+
+			if (send(client_fd, (void*)&outgoing_msg, sizeof(outgoing_msg), 0) == -1) {
+				perror("MANAGER: (comdemux) send group msg");
+				return;
+			};
+		}
+		break;
 		//comm_message *msg = (comm_message *) buffer;
 		break;
 	case ACKPUT:

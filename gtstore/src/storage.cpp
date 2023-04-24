@@ -150,14 +150,26 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			strcpy(resp.key, msg->key);
 			strcpy(resp.value, msg->value);
 			if (send(client_fd, &resp, sizeof(comm_message), 0) < 0) {
-				perror("STORAGE: send ack failed after demux");
+				perror("STORAGE: send ackput failed after demux");
 				return false;
 			} 
 
 			return 0;
 		}
-		case GET:
+		case GET: {
 			std::cout << "STORAGE[" << listen_port << "]: get message recieved: TODO (" << buffer << ")\n";
+
+			auto msg = (comm_message*)buffer;
+			comm_message resp;
+
+			resp.type = ACKGET;
+			strcpy(resp.key, msg->key);
+			strcpy(resp.value, get(msg->key).c_str());
+			if (send(client_fd, &resp, sizeof(comm_message), 0) < 0) {
+				perror("STORAGE: send ackget failed after demux");
+				return false;
+			} 
+		}
 		case ACK:
 			std::cout << "STORAGE[" << listen_port << "]: ACK, ignoring\n";
 		default:

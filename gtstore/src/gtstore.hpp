@@ -44,6 +44,7 @@ enum MSG_TYPE {
 	ACKPUT,
 	ACKGET,
 	ACK,
+	FAIL,
 	S_INIT	// Storage init (who is primary, who are neighbors) // TODO: rename STORAGE_GRP
 };
 
@@ -79,6 +80,7 @@ struct assignment_message {
 	uint8_t type;
 	store_grp_t group;
 
+	assignment_message(): type{}, group{} {}
 	assignment_message(store_grp_t group): type{S_INIT}, group{group} {}
 };
 
