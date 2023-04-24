@@ -1,0 +1,12 @@
+.vscode
+# Supress test compilation outputs
+a.out 
+*.out
+.DS_Store
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+
+.ccls-cache
