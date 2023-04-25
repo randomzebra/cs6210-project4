@@ -1,4 +1,6 @@
 #include "gtstore.hpp"
+#include <iostream>
+#include <sstream>
 
 void GTStoreClient::init(int id) {
 		client_id = id;
@@ -60,7 +62,7 @@ vector<string> GTStoreClient::get(string key) {
 		vector<string> value;
 		// Get the value!
 		if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {
-			perror("CLIENT: put connect failed");
+			perror("CLIENT: get connect failed");
 			return {};
 		}
 
@@ -152,8 +154,12 @@ vector<string> GTStoreClient::get(string key) {
 
 			auto values = ((comm_message*)buffer)->value;
 			std::cerr << "CLIENT: values: " << values << "\n";
-
-			// TODO: deliminate
+		  	std::istringstream iss(values);
+  			std::string token;
+  
+  			while (std::getline(iss, token, '|')) {
+    			value.push_back(token);
+  			}
 		} else {
 			std::cerr << "CLIENT GET: empty" << std::endl;
 		}
@@ -162,9 +168,7 @@ vector<string> GTStoreClient::get(string key) {
 		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
 	}
 
-	return {};
-
-		return value;
+	return value;
 }
 
 bool GTStoreClient::put(string key, vector<string> value) {
@@ -195,12 +199,14 @@ bool GTStoreClient::put(string key, vector<string> value) {
 	//Send message to manager
 	if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
 		perror("CLIENT: put send mngr failed");
+		close(this->connect_fd);
 		return false;
 	} 
 
 	char buffer[BUFFER_SZE];
 	if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 		perror("CLIENT: put read mngr failed");
+		close(this->connect_fd);
 		return false;
 	}
 
@@ -222,9 +228,48 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		struct sockaddr_in in_addr = res_msg->group.primary.addr;
 
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
-			if (errno == ETIMEDOUT) { //Primary timed out, dead
+			if (errno == ETIMEDOUT || errno == ECONNREFUSED) { // fail no matter what!
 				std::cerr << "Primary dead" << std::endl;
 				// connect back to manager
+				restart_connection(0);
+				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
+					perror("CLIENT: put finalize ack connection");
+					return false;
+				}
+
+				node_failure_message response_message;
+				response_message.type = NODE_FAILURE;
+				response_message.node = res_msg->group.primary;
+				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
+					perror("CLIENT: put send failure message failed");
+					close(this->connect_fd);
+					return false;
+				} 
+
+				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
+					perror("CLIENT: put read storage failed");
+					close(this->connect_fd);
+					return false;
+				}
+
+				// TODO: maybe not... retry the same process again?
+				// the manager responds with an ACK after we tell it a node has died
+				//if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
+					//restart_connection(0);
+					//return false;
+				//}
+			}
+
+			perror("CLIENT: put storage connect failed");
+			close(this->connect_fd);
+			// TODO: recall put (key, value)
+			return false;
+		}
+
+		// if connection succeeds, send put(key, value) to storage node
+		if (send(this->connect_fd, (void*)&msg, sizeof(msg), 0) < 0) { // doesn't like me using &msg instead of buffer
+			perror("CLIENT: put send storage failed");
+			if (errno == ETIMEDOUT || errno == ECONNREFUSED) { // fail no matter what!
 				restart_connection(0);
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
 					perror("CLIENT: put finalize ack connection");
@@ -240,31 +285,27 @@ bool GTStoreClient::put(string key, vector<string> value) {
 				} 
 
 				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
-					perror("CLIENT: put read storage failed");
-					return false;
-				}
-
-				// TODO: maybe not... retry the same process again?
-				// the manager responds with an ACK after we tell it a node has died
-				if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
+					perror("SERVER: put read storage failed");
 					restart_connection(0);
 					return false;
 				}
+
+				if (((generic_message *) buffer)->type != ACK) {
+					std::cerr << "[CLIENT]: manager didnt respond w ack after death notification\n";
+				}
+				restart_connection(0);
+
+				return false;
+			} else {
+				std::cerr << "[CLIENT]: unknown error when connecting to neigbor" << std::endl;
+				restart_connection(0);
+				return false;
 			}
-
-			perror("CLIENT: put storage connect failed");
-			// TODO: recall put (key, value)
-			return false;
 		}
-
-		// if connection succeeds, send put(key, value) to storage node
-		if (send(this->connect_fd, (void*)&msg, sizeof(msg), 0) < 0) { // doesn't like me using &msg instead of buffer
-			perror("CLIENT: put send storage failed");
-			return false;
-		} 
 
 		if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 			perror("CLIENT: put read storage failed");
+			restart_connection(0);
 			return false;
 		}
 
@@ -307,8 +348,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
 	}
 
-	return false;
-
+	return true;
 }
 
 int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 second timeout
@@ -336,11 +376,8 @@ int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 secon
 	return 0;
 }
 
-
-
-
-
 void GTStoreClient::finalize() {
-
-		cout << "Inside GTStoreClient::finalize() for client " << client_id << "\n";
+	close(this->listen_fd);
+	close(this->connect_fd);
+	cout << "Inside GTStoreClient::finalize() for client " << client_id << "\n";
 }

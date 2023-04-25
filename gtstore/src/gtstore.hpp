@@ -147,6 +147,7 @@ class GTStoreManager {
 		private:
 				vector<node_t> uninitialized; //Ports's of uninitialized nodes
 				queue<std::shared_ptr<store_grp_t>> rr; //Round robin for load balancing. Acts as lookup for dead nodes.
+				std::vector<std::shared_ptr<store_grp_t>> groups;
 				std::map<std::string, std::shared_ptr<store_grp_t>> key_group_map;
 				std::map<node_t, std::vector<std::string>> node_keys_map;
 				int total_nodes;
@@ -155,7 +156,7 @@ class GTStoreManager {
 				int listen_fd, connect_fd;
 				struct sockaddr_in listen_addr; //Server listening socket
 				std::mutex rr_mutex;
-				void push_group_assignments(vector<std::shared_ptr<store_grp_t>> grp_assignments);
+				void push_group_assignments();
 				int commit_push(string key, store_grp_t * strgrp);
 				int restart_connection(int mode);
 		public:

@@ -97,16 +97,16 @@ int GTStoreManager::node_init() {
 
 	std::cout << "discovered nodes: {";
 	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
+		node_keys_map.insert({*it, {}});
 		 std::cout << " ";
 		 print_node(*it);
 	}
 	std::cout << "}\n";
 
-
-
-	vector<std::shared_ptr<store_grp_t>> groups;
+	groups = {};
 	while(uninitialized.size() > 0) {
-		auto group = std::make_shared<store_grp_t>();
+		std::shared_ptr<store_grp_t> group = std::make_shared<store_grp_t>();
+		group->num_neighbors = 0;
 		group->primary = uninitialized.back();
 		uninitialized.pop_back();
 		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
@@ -117,12 +117,18 @@ int GTStoreManager::node_init() {
 		groups.push_back(group);
 	}
 
+	std::cout << "groups: {";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
 	for (auto group : groups) {
 		rr.push(group);
 		print_group(*group);
 	}
 	
-	push_group_assignments(groups);
+	push_group_assignments();
 	return 0;
 }
 
@@ -151,7 +157,7 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 }
 
 // tell a storage node that it's a primary and here are its children
-void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>> groups) {
+void GTStoreManager::push_group_assignments() {
 	// called in node_init
 	// needs to be called when it recieves a failure of a primary node, reassign primary node from source group
 	//
@@ -165,16 +171,12 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
 
-	/*
-	if (inet_pton(AF_INET, "127.0.0.1", &in_addr.sin_addr) <= 0) {
-		printf("\nInvalid address/ Address not supported \n");
-		return;
-	}
-	*/
-
-	for (auto& group : groups) {
+	for (const auto& group : groups) {
 		// TODO: send packet to every storage node saying what group they're in
 		// for now, only send to primary
+		if (group->primary.alive == false) {
+			continue;
+		}
 
  		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		struct sockaddr_in servaddr = group->primary.addr;
@@ -302,9 +304,19 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		auto msg = (node_failure_message*)buffer;
 		if (handle_node_failure(msg->node) != 0) {
 			std::cerr << "[MANAGER] unable to handle node failure\n";
-			// send NACK
+			generic_message response;
+			response.type = FAIL;
+			if (send(client_fd, (void*)&response, sizeof(generic_message), 0) == -1) {
+				perror("MANAGER: (comdemux) send fail msg");
+				return;
+			};
 		} else {
-			// send ACK
+			generic_message response;
+			response.type = ACK;
+			if (send(client_fd, (void*)&response, sizeof(generic_message), 0) == -1) {
+				perror("MANAGER: (comdemux) send ack msg");
+				return;
+			};
 		}
 		break;
 	}
@@ -328,8 +340,10 @@ std::shared_ptr<store_grp_t> GTStoreManager::put(std::string key, val_t val) {
 
 		key_group_map.insert({key, group});
 
-		//std::cerr << "MANAGER: group to return ";
-		//print_group(*group);
+		node_keys_map[group->primary].push_back(key);
+		for (int i=0; i < group->num_neighbors; ++i) {
+			node_keys_map[group->neighbors[i]].push_back(key);
+		}
 		return group;
 	} else {
 		return search->second; //else return the found grp.
@@ -341,6 +355,16 @@ int GTStoreManager::commit_push(string key, store_grp_t * strgrp) {
 }
 
 int GTStoreManager::handle_node_failure(node_t node) {
+
+		std::cout << node_keys_map.size() << "\n";
+	for (auto& pair : node_keys_map) {
+		print_node(pair.first);
+		for (const auto& key : pair.second) {
+			std::cout << key << " ,";
+		}
+		std::cout << ";\n";
+	}
+
 	auto search = node_keys_map.find(node);
 	
 	if (search == node_keys_map.end()) {
@@ -350,8 +374,15 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		return 0;
 	}
 
+	std::cout << "PREVIOUS GROUPS";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
 	// loop through every key and remove node from group
 	for (const auto& key : search->second) {
+		std::cout << "MANGER key=" << key << "\n";
 		auto grp_search = key_group_map.find(key);
 		
 		if (grp_search == key_group_map.end()) {
@@ -369,7 +400,7 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		std::cerr << "[MANAGER] node_failure: prev group";
 		print_group(*group);
 
-		if (group->primary.addr.sin_port == node.addr.sin_port) { // TODO: better equity
+		if (group->primary == node) {
 			// assign first neighbor as primary
 			auto replacement = group->neighbors[0];
 			group->primary = replacement;
@@ -386,6 +417,23 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		std::cerr << "[MANAGER] node_failure: new group";
 		print_group(*group);
 	}
+
+	std::cout << "POST GROUPS";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
+	/*
+	for (int i =0; i < 1; ++i) {
+		auto group = rr.front();
+		print_group(*group);
+		rr.pop();
+		rr.push(group);
+	}
+	*/
+
+	push_group_assignments();
 
 	return 0;
 }
