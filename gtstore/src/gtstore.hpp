@@ -132,8 +132,6 @@ class GTStoreClient {
 				int listen_fd, connect_fd;
 				int mngr_socket_fd;
 				struct sockaddr_in mang_connect_addr;
-	
-
 		public:
 				void init(int id);
 				int socket_init();
@@ -141,6 +139,7 @@ class GTStoreClient {
 				void finalize();
 				vector<string> get(string key);
 				bool put(string key, vector<string> value);
+				node_t last_p_node; // the last primary node connected
 };
 
 class GTStoreManager {
