@@ -103,27 +103,25 @@ int GTStoreManager::node_init() {
 	}
 	std::cout << "}\n";
 
-
-
-	vector<std::shared_ptr<store_grp_t>> groups;
+	groups = {};
 	while(uninitialized.size() > 0) {
-		auto group = std::make_shared<store_grp_t>();
-		group->primary = uninitialized.back();
+		store_grp_t group;
+		group.primary = uninitialized.back();
 		uninitialized.pop_back();
 		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
-			group->num_neighbors++;
-			group->neighbors[i] = uninitialized.back();
+			group.num_neighbors++;
+			group.neighbors[i] = uninitialized.back();
 			uninitialized.pop_back();
 		}
 		groups.push_back(group);
 	}
 
 	for (auto group : groups) {
-		rr.push(group);
-		print_group(*group);
+		rr.push(std::make_shared<store_grp_t>(group));
+		print_group(group);
 	}
 	
-	push_group_assignments(groups);
+	push_group_assignments();
 	return 0;
 }
 
@@ -152,7 +150,7 @@ int GTStoreManager::restart_connection(int mode) { //0 for no timeout, w/ 5 seco
 }
 
 // tell a storage node that it's a primary and here are its children
-void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>> groups) {
+void GTStoreManager::push_group_assignments() {
 	// called in node_init
 	// needs to be called when it recieves a failure of a primary node, reassign primary node from source group
 	//
@@ -166,12 +164,12 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 	struct sockaddr_in in_addr;
 	in_addr.sin_family = AF_INET;
 
-	for (auto& group : groups) {
+	for (const auto& group : groups) {
 		// TODO: send packet to every storage node saying what group they're in
 		// for now, only send to primary
 
  		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		struct sockaddr_in servaddr = group->primary.addr;
+		struct sockaddr_in servaddr = group.primary.addr;
 
 		// Connect to the server
 		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
@@ -179,7 +177,7 @@ void GTStoreManager::push_group_assignments(vector<std::shared_ptr<store_grp_t>>
 			return;
 		}
 		
-		assignment_message msg{*group};
+		assignment_message msg{group};
 
 		if (send(sockfd, (void*)&msg, sizeof(msg), 0) == -1) {
 			perror("SERVER: send group msg");
