@@ -107,13 +107,10 @@ int GTStoreManager::node_init() {
 	int num_groups = ceil(((float) this->total_nodes) / this->k);
 	groups = {};
 
-	std::cout << "MANGAGER: num groups " << num_groups << "\n";
 	for (int i = 0; i < num_groups; ++i) {
-		std::cout << "MANGAGER: i=" << i << "\n";
 		std::shared_ptr<store_grp_t> group = std::make_shared<store_grp_t>();
 		group->num_neighbors = this->k - 1;
 		for (int j = 0; j < k; ++j) {
-		std::cout << "MANGAGER: j=" << j << "\n";
 			if (j == 0) {
 
 				group->primary = uninitialized.front();
