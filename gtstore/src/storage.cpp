@@ -210,7 +210,7 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 		}
 
 		if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-			//if (errno == ETIMEDOUT) { <- fail no matter what!
+			if (errno == ETIMEDOUT || errno == ECONNREFUSED) { // fail no matter what!
 				std::cerr << "STORAGE[" << addr.sin_port << "]: neighbor died" << std::endl;
 
 				if (connect(this->connect_fd, (struct sockaddr*) &mang_connect_addr, sizeof(mang_connect_addr)) < 0) {
@@ -234,10 +234,21 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 				if (((generic_message *) buffer)->type != ACK) {
 					std::cerr << "STORAGE[" << addr.sin_port << "]: manager didnt respond w ack after death notification\n";
 				}
-			//}
 
-			//perror("STORAGE: put storage connect failed");
-			//continue;
+				generic_message response;
+				response.type = FAIL;
+				if (send(fd, (void*)&response, sizeof(generic_message), 0) == -1) {
+					perror("MANAGER: (comdemux) send fail msg");
+					return false;
+				};
+
+				close(fd);
+				return false;
+			} else {
+				std::cerr << "STORAGE[" << addr.sin_port << "]: unknown error when connecting to neigbor" << std::endl;
+				close(fd);
+				return false;
+			}
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
