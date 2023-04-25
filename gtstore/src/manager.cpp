@@ -1,5 +1,6 @@
 #include "gtstore.hpp"
 #include <string.h>
+#include <math.h>
 
 void GTStoreManager::init(int nodes, int k) {
 	this->total_nodes = nodes;
@@ -63,7 +64,7 @@ int GTStoreManager::socket_init() {
 */
 int GTStoreManager::node_init() {
 	int incoming;
-
+	queue<node_t> uninitialized; //Ports's of uninitialized nodes	
 	
 	int addrlen = sizeof(listen_addr);
 	int counter = 0;
@@ -84,7 +85,7 @@ int GTStoreManager::node_init() {
 		if (msg->type != DISC) {
 			continue; //Drop any command messages at this stage
 		} else {
-			this->uninitialized.push_back(msg->node);
+			uninitialized.push(msg->node);
 		}
 
 		if (send(incoming, "Discover ack", strlen("Discover ack"), 0) < 0) {
@@ -95,34 +96,45 @@ int GTStoreManager::node_init() {
 		counter++;
 	}
 
-	std::cout << "discovered nodes: {";
-	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
-		node_keys_map.insert({*it, {}});
-		 std::cout << " ";
-		 print_node(*it);
-	}
-	std::cout << "}\n";
+	// std::cout << "discovered nodes: {";
+	// for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
+	// 	node_keys_map.insert({*it, {}});
+	// 	 std::cout << " ";
+	// 	 print_node(*it);
+	// }
+	// std::cout << "}\n";
 
+	int num_groups = ceil(((float) this->total_nodes) / this->k);
 	groups = {};
 
-	while(uninitialized.size() > 0) {
+	std::cout << "MANGAGER: num groups " << num_groups << "\n";
+	for (int i = 0; i < num_groups; ++i) {
+		std::cout << "MANGAGER: i=" << i << "\n";
 		std::shared_ptr<store_grp_t> group = std::make_shared<store_grp_t>();
-		group->num_neighbors = 0;
-		group->primary = uninitialized.back();
-		uninitialized.pop_back();
-		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
-			group->num_neighbors++;
-			group->neighbors[i] = uninitialized.back();
-			uninitialized.pop_back();
+		group->num_neighbors = this->k - 1;
+		for (int j = 0; j < k; ++j) {
+		std::cout << "MANGAGER: j=" << j << "\n";
+			if (j == 0) {
+
+				group->primary = uninitialized.front();
+				uninitialized.pop();
+				uninitialized.push(group->primary);
+				continue;
+			} else {
+				group->neighbors[j-1] = uninitialized.front();
+				uninitialized.pop();
+				uninitialized.push(group->neighbors[j-1]);
+			}
 		}
 		groups.push_back(group);
 	}
-
 	std::cout << "groups: {";
 	for (const auto& grp : groups) {
 		std::cout << "\t\n";
 		print_group(*grp);
 	}
+
+	std::cout << "}\n";
 
 	for (auto group : groups) {
 		rr.push(group);
@@ -377,7 +389,6 @@ int GTStoreManager::handle_node_failure(node_t node) {
 
 	std::cout << "PREVIOUS GROUPS";
 	for (const auto& grp : groups) {
-		std::cout << "\t\n";
 		print_group(*grp);
 	}
 
@@ -392,8 +403,8 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		}
 
 		auto group = grp_search->second;
-		if (group->num_neighbors == 0) {
-			std::cerr << "[MANAGER] node_failure: num neighbors = 0, no alternatives!\n";
+		if (group->num_neighbors == 0 && (group->primary.pid == node.pid)) {
+			std::cerr << "[MANAGER] node_failure: num neighbors = 0, pri="<<group->primary.pid << " no alternatives!\n";
 			group->primary.alive = false;
 			return -1;
 		}

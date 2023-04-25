@@ -44,7 +44,7 @@ struct node_t {
 
 typedef struct { 
 	node_t primary;
-	uint32_t num_neighbors;
+	int num_neighbors;
 	node_t neighbors[25]; //Assume a hardcap of 25 replicas
 } store_grp_t;
 
