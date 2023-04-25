@@ -10,7 +10,7 @@ void put(char* key, char* value) {
     std::vector<std::string> val_vec{value};
 	client.put(key, val_vec);
 
-    std::cout << "> Ok, " << client.last_p_node.addr.sin_port << "\n";
+    std::cout << "> Ok, " << client.last_p_node.pid << "\n";
 
 	client.finalize();
 }
@@ -25,7 +25,7 @@ void get(char* key) {
     for (const auto& e : values) {
         std::cout << e;
     }
-    std::cout << ", " << client.last_p_node.addr.sin_port << "\n";
+    std::cout << ", " << client.last_p_node.pid << "\n";
 	client.finalize();
 }
 

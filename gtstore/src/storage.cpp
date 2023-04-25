@@ -44,6 +44,7 @@ int GTStoreStorage::node_init() {
 	node_t self;
 	self.addr = this->addr;
 	self.alive = true;
+	self.pid = getpid();
 
 	discovery_message msg;
 	msg.type = DISC;

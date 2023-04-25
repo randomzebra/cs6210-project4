@@ -31,10 +31,11 @@ typedef string val_t; //Per Piazza @327, this is ok, and
 
 struct node_t {
 	struct sockaddr_in addr;
+	int pid;
 	bool alive;
 
 	bool operator==(const node_t &n) const {
-		return n.addr.sin_port == addr.sin_port && n.addr.sin_addr.s_addr == addr.sin_addr.s_addr;
+		return n.addr.sin_port == addr.sin_port && n.addr.sin_addr.s_addr == addr.sin_addr.s_addr && pid == n.pid;
     }
 	bool operator<(const node_t &n) const {
 		return n.addr.sin_port < addr.sin_port && n.addr.sin_addr.s_addr < addr.sin_addr.s_addr;
@@ -76,7 +77,7 @@ enum MSG_TYPE {
 
 
 static void print_node(node_t n) {
-	std::cout << "(" << n.addr.sin_addr.s_addr << ":" << n.addr.sin_port << ", alive=" << (n.alive ? "1": "0") << ")";
+	std::cout << "(" << n.addr.sin_addr.s_addr << ":" << n.addr.sin_port << ", alive=" << (n.alive ? "1": "0") << "pid=" << n.pid << ")";
 }
 static void print_group(store_grp_t group) {
 	std::cout << "primary=(";
