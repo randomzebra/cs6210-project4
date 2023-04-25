@@ -105,20 +105,27 @@ int GTStoreManager::node_init() {
 
 	groups = {};
 	while(uninitialized.size() > 0) {
-		store_grp_t group;
-		group.primary = uninitialized.back();
+		std::shared_ptr<store_grp_t> group = std::make_shared<store_grp_t>();
+		group->num_neighbors = 0;
+		group->primary = uninitialized.back();
 		uninitialized.pop_back();
 		for (int i = 0; i < k - 1 && uninitialized.size() > 0; ++i) {
-			group.num_neighbors++;
-			group.neighbors[i] = uninitialized.back();
+			group->num_neighbors++;
+			group->neighbors[i] = uninitialized.back();
 			uninitialized.pop_back();
 		}
 		groups.push_back(group);
 	}
 
+	std::cout << "groups: {";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
 	for (auto group : groups) {
-		rr.push(std::make_shared<store_grp_t>(group));
-		print_group(group);
+		rr.push(group);
+		print_group(*group);
 	}
 	
 	push_group_assignments();
@@ -169,7 +176,7 @@ void GTStoreManager::push_group_assignments() {
 		// for now, only send to primary
 
  		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		struct sockaddr_in servaddr = group.primary.addr;
+		struct sockaddr_in servaddr = group->primary.addr;
 
 		// Connect to the server
 		if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
@@ -177,7 +184,7 @@ void GTStoreManager::push_group_assignments() {
 			return;
 		}
 		
-		assignment_message msg{group};
+		assignment_message msg{*group};
 
 		if (send(sockfd, (void*)&msg, sizeof(msg), 0) == -1) {
 			perror("SERVER: send group msg");
@@ -363,6 +370,12 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		return 0;
 	}
 
+	std::cout << "PREVIOUS GROUPS";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
 	// loop through every key and remove node from group
 	for (const auto& key : search->second) {
 		auto grp_search = key_group_map.find(key);
@@ -399,6 +412,21 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		std::cerr << "[MANAGER] node_failure: new group";
 		print_group(*group);
 	}
+
+	std::cout << "POST GROUPS";
+	for (const auto& grp : groups) {
+		std::cout << "\t\n";
+		print_group(*grp);
+	}
+
+	for (int i =0; i < 1; ++i) {
+		auto group = rr.front();
+		print_group(*group);
+		rr.pop();
+		rr.push(group);
+	}
+
+	push_group_assignments();
 
 	return 0;
 }
