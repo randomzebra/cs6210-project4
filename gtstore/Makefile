@@ -1,10 +1,11 @@
 CFLAGS  =
 LFLAGS  =
-CC      = g++ -g -std=c++11
+CC      = g++ -std=c++11
 RM      = /bin/rm -rf
 
-TESTS = test_app manager storage
+TESTS = performance_test test_app manager storage
 CLIENT_SRC = src/test_app.cpp src/client.cpp
+PERFORMANCE_SRC = src/performance_test.cpp src/client.cpp
 
 all: $(TESTS)
 
@@ -17,5 +18,7 @@ storage: src/storage.cpp
 test_app: 
 	$(CC) -Wall $(CLIENT_SRC) -o bin/test_app
 
+performance_test:
+	$(CC) -Wall $(CLIENT_SRC) -o bin/performance_test
 clean:
 	$(RM) *.o $(TESTS)
