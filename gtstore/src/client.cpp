@@ -1,4 +1,6 @@
 #include "gtstore.hpp"
+#include <iostream>
+#include <sstream>
 
 void GTStoreClient::init(int id) {
 		client_id = id;
@@ -152,8 +154,12 @@ vector<string> GTStoreClient::get(string key) {
 
 			auto values = ((comm_message*)buffer)->value;
 			std::cerr << "CLIENT: values: " << values << "\n";
-
-			// TODO: deliminate
+		  	std::istringstream iss(values);
+  			std::string token;
+  
+  			while (std::getline(iss, token, '|')) {
+    			value.push_back(token);
+  			}
 		} else {
 			std::cerr << "CLIENT GET: empty" << std::endl;
 		}
@@ -162,9 +168,7 @@ vector<string> GTStoreClient::get(string key) {
 		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
 	}
 
-	return {};
-
-		return value;
+	return value;
 }
 
 bool GTStoreClient::put(string key, vector<string> value) {

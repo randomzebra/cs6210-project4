@@ -13,7 +13,6 @@ void single_set_get(int client_id) {
 
 		client.put(key, value);
 		client.get(key);
-
 		client.finalize();
 }
 
