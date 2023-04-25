@@ -44,6 +44,7 @@ int GTStoreStorage::node_init() {
 	node_t self;
 	self.addr = this->addr;
 	self.alive = true;
+	self.pid = getpid();
 
 	discovery_message msg;
 	msg.type = DISC;
@@ -140,7 +141,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 		case S_INIT: {
 			std::cout << "STORAGE[" << addr.sin_port << "]: init message recieved\n";
 			assignment_message *msg = (assignment_message *) buffer;
-			group = msg->group;
+			//group = msg->group;
 			return 0;
 		}
 		case PUT: {
@@ -187,12 +188,14 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 // send PUT to every neighbor
 int GTStoreStorage::handle_put_msg(comm_message* msg) {
 	// TODO: better equity
-	if (addr.sin_port != group.primary.addr.sin_port) { // only the primary broadcasts
+	auto group = msg->group;
+	if (getpid() != group.primary.pid) { // only the primary broadcasts
 		return 0;
 	}
 
 
 	std::cout << "STORAGE[" << addr.sin_port << "]: broadcasting key to group\n";
+	print_group(group);
 	char buffer[BUFFER_SZE];
 	for (int i=0; i < group.num_neighbors; ++i) {
 		auto node = group.neighbors[i];

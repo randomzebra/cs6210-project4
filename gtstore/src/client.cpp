@@ -95,10 +95,15 @@ vector<string> GTStoreClient::get(string key) {
 				return {};
 			}
 
+			last_p_node = res_msg->group.primary;
+			if (last_p_node.alive == false) {
+				std::cerr << "Primary node is dead!\n";
+				return {};
+			}
 			sockaddr_in in_addr = res_msg->group.primary.addr;
 			
 			if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
-				if (errno == ETIMEDOUT) { //Primary timed out, dead
+				if (errno == ETIMEDOUT || errno == ECONNREFUSED) { // fail no matter what!
 					std::cerr << "Primary dead" << std::endl;
 					// connect back to manager
 					restart_connection(0);
@@ -122,15 +127,13 @@ vector<string> GTStoreClient::get(string key) {
 
 					// TODO: maybe not... retry the same process again?
 					// the manager responds with an ACK after we tell it a node has died
-					if (((generic_message *) buffer)->type == ACKGET) {//Manager has purged the failing port from records
 						restart_connection(0);
-						return {};
-					}
+						return get(key);
+				} else {
+					perror("CLIENT: get storage connect failed");
+					// TODO: recall put (key, value)
+					return {};
 				}
-
-				perror("CLIENT: get storage connect failed");
-				// TODO: recall put (key, value)
-				return {};
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
@@ -153,7 +156,7 @@ vector<string> GTStoreClient::get(string key) {
 			}
 
 			auto values = ((comm_message*)buffer)->value;
-			std::cerr << "CLIENT: values: " << values << "\n";
+			//std::cerr << "CLIENT: values: " << values << "\n";
 		  	std::istringstream iss(values);
   			std::string token;
   
@@ -183,7 +186,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			print_value += value[i] + " ";
 			serialized_value += value[i] + "|"; //Pipes are less common, serialize this way
 	}
-	cout << "Inside GTStoreClient::put() for client: " << client_id << " key: " << key << " value: " << print_value << "\n";
+	//cout << "Inside GTStoreClient::put() for client: " << client_id << " key: " << key << " value: " << print_value << "\n";
 	// Put the value!
 
 	if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {
@@ -225,6 +228,14 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		std::cout << "\n";
 		*/
 
+		last_p_node = res_msg->group.primary;
+
+		if (last_p_node.alive == false) {
+			std::cerr << "Primary node is dead!\n";
+			return {};
+		}
+		msg.group = res_msg->group;
+
 		struct sockaddr_in in_addr = res_msg->group.primary.addr;
 
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
@@ -252,18 +263,19 @@ bool GTStoreClient::put(string key, vector<string> value) {
 					return false;
 				}
 
+				return put(key, value);
 				// TODO: maybe not... retry the same process again?
 				// the manager responds with an ACK after we tell it a node has died
 				//if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
 					//restart_connection(0);
 					//return false;
 				//}
+			} else {
+				perror("CLIENT: put storage connect failed");
+				close(this->connect_fd);
+				// TODO: recall put (key, value)
+				return false;
 			}
-
-			perror("CLIENT: put storage connect failed");
-			close(this->connect_fd);
-			// TODO: recall put (key, value)
-			return false;
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
@@ -361,7 +373,7 @@ int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 secon
 		struct timeval time_val_struct = { 0 };
 		time_val_struct.tv_sec = 5;
 		time_val_struct.tv_usec = 0;
-		std::cout << "node init" << std::endl;
+		//std::cout << "node init" << std::endl;
 		if (setsockopt(this->connect_fd, SOL_SOCKET, SO_RCVTIMEO, &time_val_struct, sizeof(time_val_struct)) < 0) {
 			perror("CLIENT: restart timeout opt failed");
 			return -1;
@@ -379,5 +391,5 @@ int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 secon
 void GTStoreClient::finalize() {
 	close(this->listen_fd);
 	close(this->connect_fd);
-	cout << "Inside GTStoreClient::finalize() for client " << client_id << "\n";
+	//cout << "Inside GTStoreClient::finalize() for client " << client_id << "\n";
 }

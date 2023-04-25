@@ -31,10 +31,11 @@ typedef string val_t; //Per Piazza @327, this is ok, and
 
 struct node_t {
 	struct sockaddr_in addr;
+	int pid;
 	bool alive;
 
 	bool operator==(const node_t &n) const {
-		return n.addr.sin_port == addr.sin_port && n.addr.sin_addr.s_addr == addr.sin_addr.s_addr;
+		return n.addr.sin_port == addr.sin_port && n.addr.sin_addr.s_addr == addr.sin_addr.s_addr && pid == n.pid;
     }
 	bool operator<(const node_t &n) const {
 		return n.addr.sin_port < addr.sin_port && n.addr.sin_addr.s_addr < addr.sin_addr.s_addr;
@@ -43,7 +44,7 @@ struct node_t {
 
 typedef struct { 
 	node_t primary;
-	uint32_t num_neighbors;
+	int num_neighbors;
 	node_t neighbors[25]; //Assume a hardcap of 25 replicas
 } store_grp_t;
 
@@ -76,17 +77,17 @@ enum MSG_TYPE {
 
 
 static void print_node(node_t n) {
-	std::cout << "(" << n.addr.sin_addr.s_addr << ":" << n.addr.sin_port << ", alive=" << (n.alive ? "1": "0") << ")";
+	std::cout << "(:" << n.addr.sin_port << (n.alive ? "": "DEAD") << ", pid=" << n.pid << ")";
 }
 static void print_group(store_grp_t group) {
 	std::cout << "primary=(";
 	print_node(group.primary);
-	std::cout << ") num_neighbors=" << group.num_neighbors << " neighbors=(";
+	std::cout << " neighbors[" << group.num_neighbors << "]={ ";
 	for (uint32_t i=0; i < group.num_neighbors; ++i) {
 		print_node(group.neighbors[i]);
-		std::cout << ",";
+		std::cout << ", ";
 	}
-	std::cout << "\n";
+	std::cout << "}\n";
 }
 
 struct discovery_message {
@@ -117,6 +118,7 @@ struct comm_message {
 	uint8_t type;
 	char key[MAX_KEY_BYTE_PER_REQUEST];
 	char value[MAX_KEY_BYTE_PER_REQUEST];
+	store_grp_t group;
 };
 
 struct node_failure_message {
@@ -132,8 +134,6 @@ class GTStoreClient {
 				int listen_fd, connect_fd;
 				int mngr_socket_fd;
 				struct sockaddr_in mang_connect_addr;
-	
-
 		public:
 				void init(int id);
 				int socket_init();
@@ -141,6 +141,7 @@ class GTStoreClient {
 				void finalize();
 				vector<string> get(string key);
 				bool put(string key, vector<string> value);
+				node_t last_p_node; // the last primary node connected
 };
 
 class GTStoreManager {
@@ -179,7 +180,7 @@ class GTStoreStorage {
 				int listen_fd, connect_fd, neighborhood_fd;
 				struct sockaddr_in addr;
 				struct sockaddr_in mang_connect_addr;
-				store_grp_t group; //All replicas, excluding itself.
+				//store_grp_t group; //All replicas, excluding itself.
 				int handle_put_msg(comm_message* msg);
 				int com_demux(char* buffer, int client_fd);
 		public:
