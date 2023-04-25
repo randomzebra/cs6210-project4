@@ -96,10 +96,14 @@ vector<string> GTStoreClient::get(string key) {
 			}
 
 			last_p_node = res_msg->group.primary;
+			if (last_p_node.alive == false) {
+				std::cerr << "Primary node is dead!\n";
+				return {};
+			}
 			sockaddr_in in_addr = res_msg->group.primary.addr;
 			
 			if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
-				if (errno == ETIMEDOUT) { //Primary timed out, dead
+				if (errno == ETIMEDOUT || errno == ECONNREFUSED) { // fail no matter what!
 					std::cerr << "Primary dead" << std::endl;
 					// connect back to manager
 					restart_connection(0);
@@ -123,15 +127,13 @@ vector<string> GTStoreClient::get(string key) {
 
 					// TODO: maybe not... retry the same process again?
 					// the manager responds with an ACK after we tell it a node has died
-					if (((generic_message *) buffer)->type == ACKGET) {//Manager has purged the failing port from records
 						restart_connection(0);
-						return {};
-					}
+						return get(key);
+				} else {
+					perror("CLIENT: get storage connect failed");
+					// TODO: recall put (key, value)
+					return {};
 				}
-
-				perror("CLIENT: get storage connect failed");
-				// TODO: recall put (key, value)
-				return {};
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
@@ -227,6 +229,11 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		*/
 
 		last_p_node = res_msg->group.primary;
+
+		if (last_p_node.alive == false) {
+			std::cerr << "Primary node is dead!\n";
+			return {};
+		}
 		struct sockaddr_in in_addr = res_msg->group.primary.addr;
 
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
@@ -254,18 +261,19 @@ bool GTStoreClient::put(string key, vector<string> value) {
 					return false;
 				}
 
+				return put(key, value);
 				// TODO: maybe not... retry the same process again?
 				// the manager responds with an ACK after we tell it a node has died
 				//if (((generic_message *) buffer)->type == ACKPUT) {//Manager has purged the failing port from records
 					//restart_connection(0);
 					//return false;
 				//}
+			} else {
+				perror("CLIENT: put storage connect failed");
+				close(this->connect_fd);
+				// TODO: recall put (key, value)
+				return false;
 			}
-
-			perror("CLIENT: put storage connect failed");
-			close(this->connect_fd);
-			// TODO: recall put (key, value)
-			return false;
 		}
 
 		// if connection succeeds, send put(key, value) to storage node
