@@ -165,9 +165,7 @@ Below are the performance benchmarks test runs for 7 nodes, 1, 3 and 5 replicas,
 \includegraphics[width=\linewidth]{img/Performance75.png}\\\\
 We can see a non-linear increase in runtime. This is because of the way we allocate groups. With a replication of 5 and a node count of 7, for example,
 we have a group of 5 and a group of 2. The group of 2 only needs to replicate once, and the group of 5 needs to replicate four times. This means that 
-the average replications per run would be 3, resulting in a diminishing increase in performance per replica size increase.\\
-
-\pagebreak
+the average replications per run would be 3, resulting in a diminishing increase in performance per replica size increase.\\\\
 Below is a line graph of the results:\\\\
 \includegraphics[width=\linewidth]{img/PerformanceChart.png} 
 
