@@ -6,7 +6,7 @@ using namespace std::chrono;
 
 
 int main() {
-    string message = "Testing 200k put/get ops for performance.";
+    string message = "Testing 100k put ops for load balance.";
     std::cout <<  message << std::endl;
     int i;
     int num_ops = 100000;
@@ -26,12 +26,11 @@ int main() {
             std::cerr << "Error in put operation: " << std::to_string(i) << std::endl;
             return -1;
         }
-        client.get(newKey);
     }
 
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(end - start);
-    std::cout << "Performance Test: " << (num_ops * 2) << " operations completed in " << (duration.count()/1e6) << " seconds using std::chrono" << std::endl;
+    std::cout << "Load Balance Test: " << (num_ops * 2) << " operations completed in " << (duration.count()/1e6) << " seconds using std::chrono" << std::endl;
 
     return 0;
 }

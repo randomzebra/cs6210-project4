@@ -95,12 +95,12 @@ int GTStoreManager::node_init() {
 		counter++;
 	}
 
-	std::cout << "discovered nodes: {";
-	for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
-		 std::cout << " ";
-		 print_node(*it);
-	}
-	std::cout << "}\n";
+	// std::cout << "discovered nodes: {";
+	// for (auto it = this->uninitialized.begin(); it != this->uninitialized.end(); ++it) {
+	// 	 std::cout << " ";
+	// 	 print_node(*it);
+	// }
+	// std::cout << "}\n";
 
 
 
@@ -119,7 +119,7 @@ int GTStoreManager::node_init() {
 
 	for (auto group : groups) {
 		rr.push(group);
-		print_group(*group);
+		// print_group(*group);
 	}
 	
 	push_group_assignments(groups);
@@ -215,7 +215,7 @@ int GTStoreManager::listen_for_msgs() {
 		perror("getsockname");
 		return -1; 
 	}
-	std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
+	// std::cout << "socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
 
 	// Listen for incoming connections
 	if (listen(this->listen_fd, SOMAXCONN) == -1) {
@@ -226,7 +226,7 @@ int GTStoreManager::listen_for_msgs() {
 	while(true) {
 		// Accept incoming connections
 		int client_fd = accept(this->listen_fd, (struct sockaddr *)&sin, &sinlen);
-		std::cout << "[MANAGER [accept]] socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
+		// std::cout << "[MANAGER [accept]] socket address: " << inet_ntoa(sin.sin_addr) << " port: " << ntohs(sin.sin_port) << "\n";
 		if (client_fd < 0) {
 			perror("MANAGER: accept");
 			continue;
@@ -253,13 +253,13 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 	case PUT:
 		{
 			auto msg = (comm_message*)buffer;
-			std::cout << "[MANAGER] PUT (key=" << msg->key << ",value=" << msg->value << ")\n";
+			// std::cout << "[MANAGER] PUT (key=" << msg->key << ",value=" << msg->value << ")\n";
 			auto group = put(msg->key, msg->value);
 			if (group == nullptr) {
 				std::cout << "MANAGER: no group found for put!";
 				return;
 			}
-			print_group(*group);
+			// print_group(*group);
 			//std::cout << "[MANAGER [demux]] returning packet to: " << inet_ntoa(sin->sin_addr) << " port: " << ntohs(sin->sin_port) << "\n";
 
 			assignment_message outgoing_msg{*group};
@@ -271,15 +271,15 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		}
 		break;
 	case GET:
-		std::cout << "[MANAGER] recieved get\n";
+		// std::cout << "[MANAGER] recieved get\n";
 		{
 			auto msg = (comm_message*)buffer;
-			std::cout << "[MANAGER] GET (key=" << msg->key << "\n";
+			// std::cout << "[MANAGER] GET (key=" << msg->key << "\n";
 			auto search = key_group_map.find(msg->key);
 	
 			assignment_message outgoing_msg{};
 			if (search == key_group_map.end()) { 
-				std::cout << "MANAGER: no group found for get!";
+				// std::cout << "MANAGER: no group found for get!";
 				outgoing_msg.type = FAIL;
 				return;
 			} else {
@@ -295,10 +295,10 @@ void GTStoreManager::comDemux(char* buffer, sockaddr_in* sin, int client_fd) {
 		break;
 		//comm_message *msg = (comm_message *) buffer;
 	case ACKPUT:
-		std::cout << "[MANAGER] recieved ackput, TODO\n";
+		// std::cout << "[MANAGER] recieved ackput, TODO\n";
 		break;
 	case NODE_FAILURE: {
-		std::cout << "[MANAGER] a node has failed!\n";
+		// std::cout << "[MANAGER] a node has failed!\n";
 		auto msg = (node_failure_message*)buffer;
 		if (handle_node_failure(msg->node) != 0) {
 			std::cerr << "[MANAGER] unable to handle node failure\n";
@@ -345,7 +345,7 @@ int GTStoreManager::handle_node_failure(node_t node) {
 	
 	if (search == node_keys_map.end()) {
 		std::cerr << "[MANAGER] node_failure: node (";
-		print_node(node);
+		// print_node(node);
 		std::cerr << ") DNE in node_keys_map\n";
 		return 0;
 	}
@@ -367,7 +367,7 @@ int GTStoreManager::handle_node_failure(node_t node) {
 		}
 
 		std::cerr << "[MANAGER] node_failure: prev group";
-		print_group(*group);
+		// print_group(*group);
 
 		if (group->primary.addr.sin_port == node.addr.sin_port) { // TODO: better equity
 			// assign first neighbor as primary
@@ -384,7 +384,7 @@ int GTStoreManager::handle_node_failure(node_t node) {
 
 		}
 		std::cerr << "[MANAGER] node_failure: new group";
-		print_group(*group);
+		// print_group(*group);
 	}
 
 	return 0;

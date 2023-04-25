@@ -26,7 +26,7 @@ do
 done
 echo "Starting manager"
 ./gtstore/bin/manager $NODE $REP &
-sleep 5;
+sleep 1;
 echo "manager started"
 x=0
 while [ $x -lt $NODE ]; 

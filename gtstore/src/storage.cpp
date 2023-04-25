@@ -138,7 +138,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 	generic_message *msg = (generic_message *) buffer;
 	switch(msg->type) {
 		case S_INIT: {
-			std::cout << "STORAGE[" << addr.sin_port << "]: init message recieved\n";
+			// std::cout << "STORAGE[" << addr.sin_port << "]: init message recieved\n";
 			assignment_message *msg = (assignment_message *) buffer;
 			group = msg->group;
 			return 0;
@@ -161,7 +161,7 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			return 0;
 		}
 		case GET: {
-			std::cout << "STORAGE[" << addr.sin_port << "]: get: key=(" << buffer << ")\n";
+			// std::cout << "STORAGE[" << addr.sin_port << "]: get: key=(" << buffer << ")\n";
 
 			auto msg = (comm_message*)buffer;
 			comm_message resp;
@@ -175,10 +175,10 @@ int GTStoreStorage::com_demux(char* buffer, int client_fd) {
 			} 
 		}
 		case ACK:
-			std::cout << "STORAGE[" <<addr.sin_port << "]: ACK, ignoring\n";
+			// std::cout << "STORAGE[" <<addr.sin_port << "]: ACK, ignoring\n";
 			return 0;
 		default:
-			std::cout << "STORAGE[" <<addr.sin_port << "]: unhandled message recieved type=(" << msg->type << ")\n";
+			// std::cout << "STORAGE[" <<addr.sin_port << "]: unhandled message recieved type=(" << msg->type << ")\n";
 			return -1;
 	}
 	return 0;
@@ -192,13 +192,13 @@ int GTStoreStorage::handle_put_msg(comm_message* msg) {
 	}
 
 
-	std::cout << "STORAGE[" << addr.sin_port << "]: broadcasting key to group\n";
+	// std::cout << "STORAGE[" << addr.sin_port << "]: broadcasting key to group\n";
 	char buffer[BUFFER_SZE];
 	for (int i=0; i < group.num_neighbors; ++i) {
 		auto node = group.neighbors[i];
 
 		if (node.alive == false) { 
-			std::cout << "STORAGE[" << addr.sin_port << "]: found dead node, skipping\n";
+			// std::cout << "STORAGE[" << addr.sin_port << "]: found dead node, skipping\n";
 			continue;
 		}
 		struct sockaddr_in addr = node.addr;
@@ -351,11 +351,13 @@ int GTStoreStorage::put(std::string key, val_t value) {
 	store[key] = value;
 	load++;
 
-	std::cout << "STORAGE[" << addr.sin_port << "] store= {";
-	for (auto& kv : store) {
-		std::cout << kv.first << " : " << kv.second << ",";
-	}
-	std::cout << "}\n";
+	// std::cout << "STORAGE[" << addr.sin_port << "] store= {";
+	// for (auto& kv : store) {
+	// 	std::cout << kv.first << " : " << kv.second << ",";
+	// }
+	// std::cout << "}\n";
+
+	std::cout << "STORAGE[" << addr.sin_port << "] elements= " << store.size() << std::endl;
 	return retVal;
 }
 

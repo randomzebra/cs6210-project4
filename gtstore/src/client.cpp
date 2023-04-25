@@ -151,7 +151,7 @@ vector<string> GTStoreClient::get(string key) {
 			}
 
 			auto values = ((comm_message*)buffer)->value;
-			std::cerr << "CLIENT: values: " << values << "\n";
+			// std::cerr << "CLIENT: values: " << values << "\n";
 
 			// TODO: deliminate
 		} else {
@@ -168,6 +168,9 @@ vector<string> GTStoreClient::get(string key) {
 }
 
 bool GTStoreClient::put(string key, vector<string> value) {
+
+	// std::cout << "Testing print to cout" << std::endl;
+	// std::cerr << "testing print to cerr" << std::endl;
 	string print_value = "";
 	string serialized_value = "";
 	if (value.size() > 100) {
@@ -179,7 +182,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			print_value += value[i] + " ";
 			serialized_value += value[i] + "|"; //Pipes are less common, serialize this way
 	}
-	cout << "Inside GTStoreClient::put() for client: " << client_id << " key: " << key << " value: " << print_value << "\n";
+	// cout << "Inside GTStoreClient::put() for client: " << client_id << " key: " << key << " value: " << print_value << "\n";
 	// Put the value!
 
 	if (connect(this->connect_fd, (struct sockaddr*) &this->mang_connect_addr, sizeof(this->mang_connect_addr)) < 0) {
@@ -301,6 +304,8 @@ bool GTStoreClient::put(string key, vector<string> value) {
 				return true;
 			}
 			*/
+
+			return true;
 		}
 		
 	} else {
@@ -321,7 +326,7 @@ int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 secon
 		struct timeval time_val_struct = { 0 };
 		time_val_struct.tv_sec = 5;
 		time_val_struct.tv_usec = 0;
-		std::cout << "node init" << std::endl;
+		// std::cout << "node init" << std::endl;
 		if (setsockopt(this->connect_fd, SOL_SOCKET, SO_RCVTIMEO, &time_val_struct, sizeof(time_val_struct)) < 0) {
 			perror("CLIENT: restart timeout opt failed");
 			return -1;
