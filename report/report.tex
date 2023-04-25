@@ -60,7 +60,7 @@ The packet types are as follows
 Storage nodes are initialized separately from the manager daemon.
 When a storage node is spawned, it sends a \texttt{DESC} packet to the manager and is added to the pool of available nodes.
 Each storage node is apart of a group as determined by the manager.
-Groups are assigned ina round robin fashion to ensure a balanced load across all nodes.
+Groups are assigned ina round robin fashion to ensure a balanced load across all nodes. 
 In every group there exists one primary node that is the primary communication device for the client.
 The primary within a group is made aware of its neighbors by an \texttt{S\_INIT} packet from the server. If the primary where to die, 
 the manager will send a \texttt{S\_INIT} with a new group with the dead node purged to the next replica in line. If a replica where to die,
@@ -113,12 +113,20 @@ groups by purging dead storage nodes in the event of Primary or Client timeouts.
 
 \begin{itemize}
     \item \textbf{\underline{Load Balancing and Group Assignment:}} The manager initially assigns discovered storage nodes to storage groups, where the first node in the group
-    is a primary, and the rest are replicas. It propagates this info to the primary node. Every time a new key is called, it assigns a group to the key in a round robin fashion. 
+    is a primary, and the rest are replicas. The manager guarantees each group will have $k$ nodes. In the event that $n \% k != 0$, it will start ``double dipping'' in storage nodes
+    to maintain group size. In this way, a single node can belong to both groups, and can be both a primary and a replica. This has load balancing ramifications, which will be discussed below. 
+    The manager propagates this info to the primary node. Every time a new key is called, it assigns a group to the key in a round robin fashion. 
     This implements a load balancing scheme where all groups have a comparable amount of keys assigned to them.
     \item \textbf{\underline{Node Failure:}} When a primary or a client fails to connect to a replica or a primary respectively, a \texttt{FAIL} message is sent to the manager. 
     The manager identifies if the failure is a primary or a replica (by where it is in the group, primaries are always the head), and purges it from the group. If the purged
     node is a primary, it assigns a new primary and sends it a \texttt{S\_INIT} packet. If the node is a replica, it sends the existing primary a \texttt{S\_INIT} packet with the 
     new group assignments. 
+    \item \textbf{\underline{Load Balencing:}} Because of how we ``double dip'' when allocating groups initially, a single storage node can be a member of two groups at once. Since the 
+    round robin scheme of assigning keys to groups only guarantees that a particular group will have the same number of keys, if a node belongs to two groups, it will have double the keys.
+    This puts an inordinate amount of strain on this one node. This is unavoidable however, since the project spec requires that a particular group have k nodes. We cannot conjour up nodes
+    ourselves, so we are forced to make this compromise. A better solution would be to create an algorithm that would only ever assign a node to a single group, and balance the remaining
+    out among the groups that it could. For example, with n=9 and k =4, we would have one group of of five and one group of 4, or even 3 groups of 3. This ensures no node is overburdened
+    at the expense of not being able to guarantee group size.
 \end{itemize}
 
 \subsection{Data Management}
@@ -163,9 +171,9 @@ Below are the performance benchmarks test runs for 7 nodes, 1, 3 and 5 replicas,
 \includegraphics[width=\linewidth]{img/Performance71.png}\\
 \includegraphics[width=\linewidth]{img/Performance73.png}\\
 \includegraphics[width=\linewidth]{img/Performance75.png}\\\\
-We can see a non-linear increase in runtime. This is because of the way we allocate groups. With a replication of 5 and a node count of 7, for example,
-we have a group of 5 and a group of 2. The group of 2 only needs to replicate once, and the group of 5 needs to replicate four times. This means that 
-the average replications per run would be 3, resulting in a diminishing increase in performance per replica size increase.\\\\
+We can see a stead linear increase in runtime. As replica counts increase, the number of actual put ops will expand to \texttt{client_ops * k}, because each 
+client op must be replicated accross k nodes. Obviously, we do not experience this in get ops, but the 100k put ops will take longer. This will manifest itself 
+as a linear increase in time per op.\\\\
 Below is a line graph of the results:\\\\
 \includegraphics[width=\linewidth]{img/PerformanceChart.png} 
 
