@@ -82,9 +82,9 @@ In the background, the primary storage node broadcasts that same packet out to a
 to a node, it sends a failure connection with the failing port to the manager, which will purge the group of that port. 
 
 A diagram of the program flow is included below:\\
-\begin{center}
-    \includegraphics[scale=0.7]{img/Put.drawio.png}
-\end{center}
+
+\includegraphics[width=\linewidth]{img/Put.drawio.png}
+
 
 
 \pagebreak
@@ -103,9 +103,8 @@ The client library splits this string into substrings based around this delimina
 
 A diagram of the program flow is included below. Note that because there is no need to contact replicas, 
 the flow is significantly less complex:\\
-\begin{center}
-    \includegraphics[scale=0.7]{img/Get.drawio.png}
-\end{center}
+\includegraphics[width=\linewidth]{img/Get.drawio.png}
+
 
 \subsection{GTStore Manager (Data Partitioning)}
 The manager is responsible for assigning and maintaining a an active map of keys to storage groups. It is the first point of contact for any client API call.
@@ -157,5 +156,32 @@ Data consistency is maintained through replication. A node that fails a connecti
 This ensures that nodes within a group have consistent data. Since the client contacts the storage nodes directly, there is no need to keep data consistent from a manager, storage node
 perspective. In fact, the manager does not even store values, or use the value field in a put message in any way. Storage nodes are the only nodes to ever handle the actual storage of data.
 \section{Results}
+
+
+\subsection{Performance}
+Below are the performance benchmarks test runs for 7 nodes, 1, 3 and 5 replicas, in order:\\\\
+\includegraphics[width=\linewidth]{img/Performance71.png}\\
+\includegraphics[width=\linewidth]{img/Performance73.png}\\
+\includegraphics[width=\linewidth]{img/Performance75.png}\\\\
+We can see a non-linear increase in runtime. This is because of the way we allocate groups. With a replication of 5 and a node count of 7, for example,
+we have a group of 5 and a group of 2. The group of 2 only needs to replicate once, and the group of 5 needs to replicate four times. This means that 
+the average replications per run would be 3, resulting in a diminishing increase in performance per replica size increase.\\
+
+\pagebreak
+Below is a line graph of the results:\\\\
+\includegraphics[width=\linewidth]{img/PerformanceChart.png} 
+
+\pagebreak
+\subsection{Load Balancing}
+Below is the last few lines of the load benchmark run:\\\\
+\includegraphics[width=\linewidth]{img/load71.png}\\\\
+
+Here we see a printout of every storage node's size as a put is called. We look here at the last 7 lines of the test output. This corresponds to 7 nodes in 7 unique
+storage groups. Note that the sum of the last 7 lines is 100k, matching our 100k puts. We see that they are within 1 of each other, 
+indicating our round robin load balancing scheme functions
+
+Below is a histogram of the results:\\\\
+\includegraphics[width=\linewidth]{img/LoadChart.png} 
+
 
 \end{document}
