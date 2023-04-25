@@ -195,12 +195,14 @@ bool GTStoreClient::put(string key, vector<string> value) {
 	//Send message to manager
 	if (send(this->connect_fd, &msg, sizeof(msg), 0) < 0) {
 		perror("CLIENT: put send mngr failed");
+		close(this->connect_fd);
 		return false;
 	} 
 
 	char buffer[BUFFER_SZE];
 	if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 		perror("CLIENT: put read mngr failed");
+		close(this->connect_fd);
 		return false;
 	}
 
@@ -236,11 +238,13 @@ bool GTStoreClient::put(string key, vector<string> value) {
 				response_message.node = res_msg->group.primary;
 				if (send(this->connect_fd, &response_message, sizeof(response_message), 0) < 0) {
 					perror("CLIENT: put send failure message failed");
+					close(this->connect_fd);
 					return false;
 				} 
 
 				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 					perror("CLIENT: put read storage failed");
+					close(this->connect_fd);
 					return false;
 				}
 
@@ -253,6 +257,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			}
 
 			perror("CLIENT: put storage connect failed");
+			close(this->connect_fd);
 			// TODO: recall put (key, value)
 			return false;
 		}
@@ -277,22 +282,26 @@ bool GTStoreClient::put(string key, vector<string> value) {
 
 				if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 					perror("SERVER: put read storage failed");
+					restart_connection(0);
 					return false;
 				}
 
 				if (((generic_message *) buffer)->type != ACK) {
 					std::cerr << "[CLIENT]: manager didnt respond w ack after death notification\n";
 				}
+				restart_connection(0);
 
 				return false;
 			} else {
 				std::cerr << "[CLIENT]: unknown error when connecting to neigbor" << std::endl;
+				restart_connection(0);
 				return false;
 			}
 		}
 
 		if (read(this->connect_fd, &buffer, sizeof(buffer)) < 0) {
 			perror("CLIENT: put read storage failed");
+			restart_connection(0);
 			return false;
 		}
 
@@ -335,8 +344,7 @@ bool GTStoreClient::put(string key, vector<string> value) {
 		std::cerr << "CLIENT: recieved unknown packet, expecting S_INIT\n";
 	}
 
-	return false;
-
+	return true;
 }
 
 int GTStoreClient::restart_connection(int mode) { //0 for no timeout, w/ 5 second timeout
