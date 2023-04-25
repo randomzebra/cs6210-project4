@@ -77,17 +77,17 @@ enum MSG_TYPE {
 
 
 static void print_node(node_t n) {
-	std::cout << "(" << n.addr.sin_addr.s_addr << ":" << n.addr.sin_port << ", alive=" << (n.alive ? "1": "0") << "pid=" << n.pid << ")";
+	std::cout << "(:" << n.addr.sin_port << (n.alive ? "": "DEAD") << ", pid=" << n.pid << ")";
 }
 static void print_group(store_grp_t group) {
 	std::cout << "primary=(";
 	print_node(group.primary);
-	std::cout << ") num_neighbors=" << group.num_neighbors << " neighbors=(";
+	std::cout << " neighbors[" << group.num_neighbors << "]={ ";
 	for (uint32_t i=0; i < group.num_neighbors; ++i) {
 		print_node(group.neighbors[i]);
-		std::cout << ",";
+		std::cout << ", ";
 	}
-	std::cout << "\n";
+	std::cout << "}\n";
 }
 
 struct discovery_message {
@@ -118,6 +118,7 @@ struct comm_message {
 	uint8_t type;
 	char key[MAX_KEY_BYTE_PER_REQUEST];
 	char value[MAX_KEY_BYTE_PER_REQUEST];
+	store_grp_t group;
 };
 
 struct node_failure_message {
@@ -179,7 +180,7 @@ class GTStoreStorage {
 				int listen_fd, connect_fd, neighborhood_fd;
 				struct sockaddr_in addr;
 				struct sockaddr_in mang_connect_addr;
-				store_grp_t group; //All replicas, excluding itself.
+				//store_grp_t group; //All replicas, excluding itself.
 				int handle_put_msg(comm_message* msg);
 				int com_demux(char* buffer, int client_fd);
 		public:

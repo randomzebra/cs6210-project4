@@ -4,7 +4,7 @@ make clean
 make
 
 # Launch the GTStore Manager
-./bin/manager 2 2 &
+./bin/manager 4 3 &
 sleep 5
 
 # Launch couple GTStore Storage Nodes
@@ -12,10 +12,10 @@ sleep 5
 sleep 5
 ./bin/storage &
 sleep 5
-#./bin/storage &
-#sleep 5
-#./bin/storage &
-#sleep 5
+./bin/storage &
+sleep 5
+./bin/storage &
+sleep 5
 
 
 # Launch the client testing app

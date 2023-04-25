@@ -104,6 +104,7 @@ int GTStoreManager::node_init() {
 	std::cout << "}\n";
 
 	groups = {};
+
 	while(uninitialized.size() > 0) {
 		std::shared_ptr<store_grp_t> group = std::make_shared<store_grp_t>();
 		group->num_neighbors = 0;

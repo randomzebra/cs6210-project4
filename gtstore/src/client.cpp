@@ -234,6 +234,8 @@ bool GTStoreClient::put(string key, vector<string> value) {
 			std::cerr << "Primary node is dead!\n";
 			return {};
 		}
+		msg.group = res_msg->group;
+
 		struct sockaddr_in in_addr = res_msg->group.primary.addr;
 
 		if (connect(this->connect_fd, (struct sockaddr*) &in_addr, sizeof(in_addr)) < 0) {
